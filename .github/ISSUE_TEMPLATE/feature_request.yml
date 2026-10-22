@@ -1,0 +1,35 @@
+name: Feature request
+description: Propose a capability, a connector, or a change to how shifts work.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The shift is configuration over code: workers, connectors and their directives
+        live in `shift.yaml`. First consider whether your idea is a directive, a
+        template or a connector binding rather than new code. See the roadmap (issue #1).
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / use case
+      description: What are you trying to do that you can't today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: A directive? a connector? a new verb? Sketch the shape if relevant.
+    validations:
+      required: true
+  - type: dropdown
+    id: security
+    attributes:
+      label: Does it touch secrets or what workers can reach?
+      description: Keys, connector credentials, exec permissions, or grants between agents. These get a security review first.
+      options:
+        - "No"
+        - "Yes"
+        - "Not sure"
+    validations:
+      required: true

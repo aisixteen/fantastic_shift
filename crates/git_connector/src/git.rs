@@ -20,14 +20,35 @@ use crate::{bad, missing_arg, Cfg, NAME, URL_CREDS};
 pub(crate) struct Auth {
     pub username: String,
     pub token: String,
+    pub host: String,
+    pub proto: String,
 }
 
 /// Resets every configured helper, then supplies ours. Reads the token from
 /// the child's environment only.
-pub(crate) const HELPER: &str = r#"credential.helper=!f() { test "$1" = get || exit 0; echo "username=$SHIFT_GIT_USERNAME"; echo "password=$SHIFT_GIT_TOKEN"; }; f"#;
+pub(crate) const HELPER: &str = r#"credential.helper=!f() { test "$1" = get || exit 0; p=; h=; while IFS='=' read -r k v; do case "$k" in protocol) p=$v;; host) h=$v;; esac; done; test "$h" = "$SHIFT_GIT_HOST" && test "$p" = "$SHIFT_GIT_PROTO" || exit 0; echo "username=$SHIFT_GIT_USERNAME"; echo "password=$SHIFT_GIT_TOKEN"; }; f"#;
 
 const PLAIN_HTTP: &str = "shift_git: credentials are sent only over https (or http to 127.0.0.1, ::1 or localhost) — refused";
 const FORCE: &str = "shift_git push: a force push is never made — push a new branch name instead";
+const REWRITES: &str = "git connector: the repository rewrites its remote URL (insteadOf), refusing to send credentials";
+
+/// True when a `url.<x>.insteadOf` or `url.<x>.pushInsteadOf` rule in `dir`
+/// matches `url` as a prefix, so git could send the request elsewhere.
+pub(crate) async fn rewrites_url(dir: &Path, url: &str) -> bool {
+    let Some(out) = plain(
+        dir,
+        &["config", "--get-regexp", "^url\\..*\\.(push)?insteadof$"],
+    )
+    .await
+    else {
+        return false;
+    };
+    out.lines().any(|line| {
+        line.split_once(' ')
+            .map(|(_, value)| !value.is_empty() && url.starts_with(value))
+            .unwrap_or(false)
+    })
+}
 const TRAILER: &str = "shift_git commit: each trailer is one `Key: value` line";
 
 fn s(p: &Path) -> String {
@@ -154,7 +175,9 @@ pub(crate) async fn run(
             "core.hooksPath=/dev/null",
         ]);
         cmd.env("SHIFT_GIT_USERNAME", &a.username)
-            .env("SHIFT_GIT_TOKEN", &a.token);
+            .env("SHIFT_GIT_TOKEN", &a.token)
+            .env("SHIFT_GIT_HOST", &a.host)
+            .env("SHIFT_GIT_PROTO", &a.proto);
     }
     cmd.args(args);
     cmd.env("GIT_TERMINAL_PROMPT", "0")
@@ -280,6 +303,8 @@ pub(crate) async fn auth_for(
         Ok(Some(token)) => Ok(Some(Auth {
             username: cfg.username.clone(),
             token,
+            host: authority.to_ascii_lowercase(),
+            proto: scheme.clone(),
         })),
         Ok(None) => Ok(None),
         Err(e) => Err(json!({"error": e.0})),
@@ -454,6 +479,9 @@ async fn push_inner(
     let raw = arg(p, V, "path")?;
     let path = gate(cfg, V, raw).await?;
     let url = remote_url(cfg).await?;
+    if rewrites_url(&path, &url).await {
+        return Err(bad(REWRITES.to_string(), "remote", json!("[url withheld]")));
+    }
     let auth = auth_for(cfg, &url, id, kernel).await?;
     *slot = auth;
     let refspec = format!("refs/heads/{branch}:refs/heads/{branch}");
@@ -489,6 +517,9 @@ async fn fetch_inner(
 ) -> Result<Value, Value> {
     const V: &str = "fetch";
     let url = remote_url(cfg).await?;
+    if rewrites_url(&cfg.repo_dir, &url).await {
+        return Err(bad(REWRITES.to_string(), "remote", json!("[url withheld]")));
+    }
     let auth = auth_for(cfg, &url, id, kernel).await?;
     *slot = auth;
     if looks_like_url(&cfg.remote) {

@@ -76,7 +76,6 @@ async fn the_https_token_never_leaves_the_agent() {
             .await,
     );
 
-
     // 1. No reply carries the token.
     for r in &replies {
         assert!(!serde_json::to_string(r).unwrap().contains(TOKEN), "{r}");
@@ -150,11 +149,69 @@ async fn plain_http_to_a_remote_host_is_refused() {
     assert!(!serde_json::to_string(&r).unwrap().contains(TOKEN));
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn a_rewritten_remote_is_refused_before_any_credential_is_sent() {
+    let (other_port, other_seen) = fake_forge();
+    let (port, _seen) = fake_forge();
+    let url = format!("http://127.0.0.1:{port}/org/repo.git");
+    let f = fx(json!({"remote": url}), Some((&url, TOKEN))).await;
+    f.call(
+        json!({"type": "worktree_add", "path": "w", "branch": "work/rw", "base": "origin/main"}),
+    )
+    .await;
+    std::fs::write(f.ws.join("w").join("rw.txt"), "r\n").unwrap();
+    f.call(json!({"type": "commit", "path": "w", "message": "rw"}))
+        .await;
+    sh_git(
+        &f.repo,
+        &[
+            "config",
+            &format!("url.http://127.0.0.1:{other_port}/.pushInsteadOf"),
+            &url,
+        ],
+    );
+    let r = f
+        .call(json!({"type": "push", "path": "w", "branch": "work/rw"}))
+        .await;
+    assert_eq!(
+        r["error"],
+        "git connector: the repository rewrites its remote URL (insteadOf), refusing to send credentials"
+    );
+    assert!(
+        other_seen.lock().unwrap().is_empty(),
+        "the other server received a request"
+    );
+}
+
+#[test]
+fn the_helper_gives_no_credentials_for_another_host() {
+    let helper = crate::git::HELPER.trim_start_matches("credential.helper=");
+    let out = std::process::Command::new("sh")
+        .args([
+            "-c",
+            &format!("{helper} get <<'EOF'\nprotocol=http\nhost=evil.example:80\n\nEOF"),
+        ])
+        .env("SHIFT_GIT_USERNAME", "u")
+        .env("SHIFT_GIT_TOKEN", TOKEN)
+        .env("SHIFT_GIT_HOST", "127.0.0.1:1")
+        .env("SHIFT_GIT_PROTO", "http")
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(!text.contains(TOKEN), "helper printed the token: {text}");
+    assert!(
+        !text.contains("username="),
+        "helper printed credentials: {text}"
+    );
+}
+
 #[test]
 fn redact_hides_the_token() {
     let auth = Auth {
         username: "u".into(),
         token: TOKEN.into(),
+        host: "127.0.0.1:1".into(),
+        proto: "http".into(),
     };
     assert_eq!(redact(&format!("x {TOKEN} y"), Some(&auth)), "x [secret] y");
     assert_eq!(redact("x y", None), "x y");

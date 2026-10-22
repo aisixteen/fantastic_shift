@@ -7,7 +7,9 @@ Program: `fantastic_team`. Install: docs/install.md
 **How a team works (1 min):**
 https://github.com/aisixteen/fantastic_shift/raw/main/media/how_it_works.mp4
 
-[media/how_it_works.mp4](media/how_it_works.mp4)
+[![AISixteen Fantastic Team — how it works](media/how_it_works-poster.jpg)](media/how_it_works.mp4)
+
+▶ [Watch how it works](media/how_it_works.mp4)
 
 It is not only for code. A task is any piece of work that can be described exactly and checked:
 

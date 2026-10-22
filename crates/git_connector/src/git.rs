@@ -60,7 +60,6 @@ fn s(p: &Path) -> String {
 }
 
 /// Replace every occurrence of the token with the shown marker.
-/// Replace every occurrence of the token with the shown marker.
 pub fn redact(text: &str, auth: Option<&Auth>) -> String {
     match auth {
         Some(a) if !a.token.is_empty() => text.replace(a.token.as_str(), SHOWN),
@@ -157,8 +156,8 @@ fn host_of(authority: &str) -> String {
     }
 }
 
-/// Run one git command. Stdout is returned redacted; stderr is redacted on failure.
-/// Run one git command in `dir` with the optional one-shot credential.
+/// Run one git command in `dir` with the optional one-shot credential. Stdout is
+/// returned redacted; stderr is redacted on failure.
 pub async fn run(
     cfg: &Cfg,
     dir: &Path,
@@ -258,7 +257,6 @@ pub(crate) async fn toplevel(dir: &Path) -> Option<PathBuf> {
 }
 
 /// The URL of the record's remote: itself when it is a URL, else the name's URL.
-/// The URL of the record's remote: the name's URL, or the URL itself.
 pub async fn remote_url(cfg: &Cfg) -> Result<String, Value> {
     if looks_like_url(&cfg.remote) {
         return Ok(cfg.remote.clone());

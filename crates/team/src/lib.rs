@@ -6,6 +6,7 @@
 #![deny(missing_docs)]
 
 pub mod config;
+pub mod puller;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -30,6 +31,7 @@ pub fn register_team(reg: &mut BundleRegistry) {
         team_github_connector::HANDLER_MODULE,
         team_github_connector::GithubConnectorBundle,
     );
+    reg.register(puller::HANDLER_MODULE, puller::PullerBundle);
 }
 
 /// A kernel registry for [`start`] (tests, embedding): the bundles the base

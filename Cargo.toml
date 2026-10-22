@@ -13,6 +13,14 @@ repository = "https://github.com/aisixteen/fantastic_team"
 # fantastic crate below names the same git URL and branch, and fantastic-tui (the terminal shell as a
 # library, aisixteen/fantastic#267) pulls its own crates from that same repository, so Cargo resolves
 # them to one commit. Update them all at once with scripts/update-fantastic.sh.
+#
+# Modes (one fantastic version in every mode):
+#   1. semver (default target): once fantastic publishes releases to crates.io, each line
+#      above becomes `fantastic-kernel = "0.x.y"` (same for every fantastic crate). Not yet:
+#      `cargo search fantastic-kernel` finds nothing, so the git lines stay active. A missing
+#      crate would break the build.
+#   2. git branch main (today): the lines above, pinned by Cargo.lock.
+#   3. local checkout: copy .cargo/config.toml.example to .cargo/config.toml (uncommitted).
 fantastic-tui = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
 fantastic-kernel = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
 fantastic-bundle = { git = "https://github.com/aisixteen/fantastic", branch = "main" }

@@ -1,0 +1,10 @@
+# The Swift bridge in fantastic needs macOS 14 as its deployment target.
+[env]
+MACOSX_DEPLOYMENT_TARGET = "14.0"
+
+# Copy this file to .cargo/config.toml to build fantastic_shift against a
+# local fantastic checkout instead of the git branch. Do not commit the copy.
+[patch."https://github.com/aisixteen/fantastic"]
+fantastic-kernel = { path = "../fantastic/src/lib/rust/crates/fantastic-kernel" }
+fantastic-host = { path = "../fantastic/src/lib/rust/crates/fantastic-host" }
+fantastic-bundle = { path = "../fantastic/src/lib/rust/crates/fantastic-bundle" }

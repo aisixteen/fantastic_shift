@@ -75,6 +75,19 @@ Results can stay as files in the shift's folder. When work belongs somewhere els
 | `shift.yaml` | The shifter, the worker templates (any backend, any model), the connectors and their directives, the task source. |
 | task templates | How to write a task that a worker can carry out alone. |
 
+## Build and run
+
+```
+cargo build --release
+./target/release/fantastic_shift --dir ./my-shift
+```
+
+Ctrl-C to stop. fantastic is a pinned git dependency. On macOS the build needs `MACOSX_DEPLOYMENT_TARGET=14.0` (fantastic's Swift bridge targets macOS 14); `.cargo/config.toml.example` sets it under `[env]`.
+
+## Updating fantastic
+
+fantastic is a git dependency followed by branch, pinned in `Cargo.lock`. `scripts/update-fantastic.sh` moves to the newest commit and runs the build and tests. `.cargo/config.toml.example` builds against a local checkout.
+
 ## Status
 
 Being built — by fantastic's own workers, from exact tasks. Progress: the [project board](https://github.com/orgs/aisixteen/projects/2) and the [issues](https://github.com/aisixteen/fantastic_shift/issues).

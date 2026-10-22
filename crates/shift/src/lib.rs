@@ -181,6 +181,13 @@ mod tests {
     }
 
     #[test]
+    fn the_registry_has_the_git_connector() {
+        let reg = registry();
+        let names: Vec<&str> = reg.catalog().map(|(n, _)| n).collect();
+        assert!(names.contains(&"shift_git.tools"));
+    }
+
+    #[test]
     fn args_default_to_the_current_directory() {
         let a = parse_args(&[]).unwrap();
         assert_eq!(a.dir, std::env::current_dir().unwrap());

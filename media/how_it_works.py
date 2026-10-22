@@ -93,7 +93,7 @@ class HowItWorks(Scene):
 
     def workers_beat(self):
         disp_box = box(2.6, 1.0, BLUE)
-        disp_lbl = label("dispatcher")
+        disp_lbl = label("the shifter (AI)")
         self.dispatcher = VGroup(disp_box, disp_lbl).move_to([0, 0.6, 0])
 
         names = ["worker · Haiku", "worker · Haiku", "worker · Qwen (local GPU)"]
@@ -112,10 +112,11 @@ class HowItWorks(Scene):
             for y in ys
         ])
         self.play(FadeIn(self.dispatcher), run_time=1)
-        self.play(*[FadeIn(w) for w in self.workers],
-                  *[FadeIn(d) for d in self.dots], run_time=1.5)
+        self.caption("the shifter, an AI agent, spawns its workers — any model")
+        centre = self.dispatcher.get_center()
+        for w, d in zip(self.workers, self.dots):
+            self.play(GrowFromPoint(w, centre), FadeIn(d), run_time=1)
         self.play(FadeIn(arrows), run_time=0.8)
-        self.caption("a shift of AI workers, any model mix")
         self.wait(1.5)
 
     def handout_beat(self):
@@ -145,6 +146,7 @@ class HowItWorks(Scene):
 
     def delivery_beat(self):
         self.caption("the delivery agent holds the keys — workers hold none")
+        self.play(FadeOut(self.cards[3], self.cards[4]), run_time=0.6)
         bx = box(3.4, 0.9, VIOLET).move_to([0, -2.4, 0])
         body = RoundedRectangle(corner_radius=0.04, width=0.3, height=0.25,
                                 stroke_color=CYAN, fill_color=CYAN,
@@ -164,7 +166,7 @@ class HowItWorks(Scene):
 
         outs = VGroup(*[label(t) for t in
                         ["files", "report", "comment", "branch / PR"]])
-        outs.arrange(RIGHT, buff=0.35).move_to([-1.2, -1.2, 0])
+        outs.arrange(RIGHT, buff=0.35).move_to([0.2, -1.4, 0])
         self.play(LaggedStart(*[FadeIn(o) for o in outs], lag_ratio=0.5),
                   run_time=2.5)
         self.wait(1.5)

@@ -1,5 +1,5 @@
 //! The directives agents of a shift run from, as files. Two ship with the binary:
-//! the worker's (take a task from the queue, do it, hand it back, repeat) and the
+//! the worker's (claim a task file in the queue, do it, hand it back, repeat) and the
 //! shifter's (start workers from templates, keep them going, stop the ones that go
 //! wrong, clean up). A config may name another file instead. Neither names a
 //! provider, a model or a kind of work: a task's own instructions say what the work is.
@@ -55,31 +55,57 @@ mod tests {
     }
 
     #[test]
-    fn the_worker_uses_the_queue_verbs() {
+    fn the_worker_claims_a_task_file_with_if_match() {
         for s in [
-            "<type>take</type>",
-            "<type>renew</type>",
-            "<type>done</type>",
-            "<type>release</type>",
-            "<taker>YOU</taker>",
+            "if_match",
+            "version",
+            "version_mismatch",
+            ".state",
+            "pending",
+            "taken",
+            "until",
+            "done",
+            "failed",
+            "\"taker\":\"YOU\"",
+            "<type>list</type>",
+            "<type>read</type>",
+            "<type>write</type>",
         ] {
             assert!(WORKER.contains(s), "worker directive lacks {s}");
         }
     }
 
     #[test]
-    fn the_shifter_uses_the_queue_verbs() {
+    fn the_shifter_reads_and_guards_the_task_files() {
         for s in [
-            "<type>take</type>",
-            "<type>status</type>",
-            "<type>done</type>",
+            "if_match",
+            "version",
+            "version_mismatch",
+            ".state",
+            "taken",
             "<type>list</type>",
+            "<type>read</type>",
+            "<type>write</type>",
             "create_agent",
             "delete_agent",
             "update_agent",
             "wait_s",
         ] {
             assert!(SHIFTER.contains(s), "shifter directive lacks {s}");
+        }
+    }
+
+    #[test]
+    fn no_directive_uses_the_old_queue_agent_verbs() {
+        for (name, text) in [("worker", WORKER), ("shifter", SHIFTER)] {
+            for s in [
+                "<type>take</type>",
+                "<type>renew</type>",
+                "<type>release</type>",
+                "<type>done</type>",
+            ] {
+                assert!(!text.contains(s), "{name} directive still uses {s}");
+            }
         }
     }
 

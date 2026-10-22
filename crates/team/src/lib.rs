@@ -14,6 +14,7 @@ pub mod puller;
 pub mod setup_github;
 pub mod tree;
 pub mod worker_view;
+pub mod webhook;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -39,6 +40,7 @@ pub fn register_team(reg: &mut BundleRegistry) {
         team_github_connector::GithubConnectorBundle,
     );
     reg.register(puller::HANDLER_MODULE, puller::PullerBundle);
+    reg.register(webhook::HANDLER_MODULE, webhook::WebhookBundle);
     reg.register(board::HANDLER_MODULE, board::BoardBundle);
     reg.register(dispatcher::HANDLER_MODULE, dispatcher::DispatcherBundle);
     reg.register(

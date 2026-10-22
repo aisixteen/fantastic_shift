@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dispatcher</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 12px; }
+  .node { border-bottom: 1px solid #ddd; padding: 8px 0; cursor: pointer; }
+  .group { margin-left: 16px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .state-stalled { color: #b45309; }
+  .state-failed { color: #b91c1c; }
+  .state-done { color: #15803d; }
+  .conn-missing { color: #b91c1c; }
+  @media (max-width: 430px) { .row { flex-direction: column; gap: 2px; } }
+</style>
+</head>
+<body>
+<h2 id="title">Team</h2>
+<div id="connections"></div>
+<div id="waiting"></div>
+<div id="tree"></div>
+<script>
+// Contract: the dispatcher answers the `tree` verb with nodes of kind team,
+// group or worker. A worker row carries: id, state, task, minutes, cost.
+// A click calls `open` for the node; back returns with the scroll place kept.
+const scrollPlaces = [];
+
+function rowHtml(r) {
+  const cls = r.state.startsWith('stalled') ? 'state-stalled'
+    : r.state === 'failed' ? 'state-failed'
+    : r.state === 'done' ? 'state-done' : '';
+  const time = r.minutes == null ? '' : r.minutes + ' min';
+  return '<div class="node" data-node="' + r.id + '" data-kind="worker">' +
+    '<div class="row"><strong>' + r.id + '</strong>' +
+    '<span class="' + cls + '">' + r.state + '</span>' +
+    '<span>' + (r.task || '') + '</span>' +
+    '<span>' + time + '</span>' +
+    '<span>$' + (r.cost || 0).toFixed(2) + '</span></div></div>';
+}
+
+function nodeHtml(n) {
+  if (n.kind === 'worker') return rowHtml(n.row);
+  const kids = (n.children || []).map(nodeHtml).join('');
+  return '<div class="node" data-node="' + n.id + '" data-kind="' + n.kind + '"><strong>' +
+    n.id + '</strong></div><div class="group">' + kids + '</div>';
+}
+
+function render(tree) {
+  document.getElementById('tree').innerHTML = nodeHtml(tree);
+}
+
+document.addEventListener('click', function (e) {
+  const el = e.target.closest('[data-node]');
+  if (!el) return;
+  scrollPlaces.push(window.scrollY);
+  window.dispatchEvent(new CustomEvent('dispatcher:open', {
+    detail: { node: el.dataset.node, kind: el.dataset.kind }
+  }));
+});
+
+window.addEventListener('dispatcher:back', function () {
+  const y = scrollPlaces.pop();
+  if (y !== undefined) window.scrollTo(0, y);
+});
+
+window.addEventListener('dispatcher:tree', function (e) { render(e.detail); });
+</script>
+</body>
+</html>

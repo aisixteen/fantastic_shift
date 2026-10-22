@@ -14,6 +14,12 @@ It is not only for code. A task is any piece of work that can be described exact
 | Review | "check this PR against our rules" | a review with findings |
 | Translation, ports | "port this module to Python, same behaviour" | the port, with its tests |
 
+## A general-purpose shifter
+
+The shift itself knows nothing about code, GitHub, or any kind of work. It does one thing: it takes the next task, gives the task's **instructions** to a free worker, waits until the worker says it is done, records the time and cost, and pushes or stops a worker that stalls. Everything specific to the work — what to read, what to produce, which tools to use (files, commands, git, GitHub, nothing at all), how to check the result — is in the task's instructions. A coding task is just one kind of instructions; so is a research task or a triage task.
+
+The tools a worker may call are agents it is granted per shift: a worker on a writing shift may get only files; a worker on a coding shift gets files, commands and git; a GitHub delivery agent is added only where results go to GitHub.
+
 ## How a shift runs
 
 ```

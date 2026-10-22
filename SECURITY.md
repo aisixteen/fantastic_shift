@@ -30,5 +30,5 @@ with the reporter.
   process environment only; never on its disk, in argv or in shell history.
 - **Merges need the maintainer's approval on the current head.** A way for the shift to
   merge a PR without it is a vulnerability.
-- The unsecured shift-to-shift link (#47) is for trusted networks only and says so; its
-  lack of auth is documented, not a vulnerability. The secured link is designed in #48.
+- Connections between shifts, and from the app, go through our relay as it is; this repo
+  adds no auth layer of its own.

@@ -21,6 +21,7 @@ fn main() -> ExitCode {
                 ExitCode::from(2)
             }
         };
+    }
     // `ai-readme`: print the README for AIs and stop. No flags, no team.
     if all.first().map(String::as_str) == Some("ai-readme") {
         print!("{}", fantastic_team::AI_README);

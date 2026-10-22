@@ -1,8 +1,8 @@
-# How a shift works: the animation
+# How a team works: the animation
 
-A one-minute manim animation of how a fantastic_shift shift runs.
+A one-minute manim animation of how a fantastic_team team runs.
 
-- **Title:** fantastic_shift, unattended work shifts.
+- **Title:** fantastic_team, unattended work teams.
 - **The queue:** you queue tasks, of any kind of work.
 - **The workers:** a dispatcher and a mix of AI workers (Haiku, Qwen on a local GPU).
 - **Hand-out:** the next task goes to whichever worker is free.
@@ -10,7 +10,7 @@ A one-minute manim animation of how a fantastic_shift shift runs.
 - **Delivery:** the delivery agent holds the keys; workers hold none. Results come back as files, a report, a comment, or a branch / PR.
 - **Measured:** every task records time, tokens and cost.
 - **You review:** you come back to done work and review it.
-- **End:** github.com/aisixteen/fantastic_shift.
+- **End:** github.com/aisixteen/fantastic_team.
 
 ## Re-render
 

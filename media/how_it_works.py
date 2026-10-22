@@ -1,4 +1,4 @@
-"""How a fantastic_shift shift works, as a short manim animation.
+"""How a fantastic_team team works, as a short manim animation.
 
 Render (low quality, to check it runs):
     manim -ql how_it_works.py HowItWorks
@@ -65,8 +65,8 @@ class HowItWorks(Scene):
     # beats
 
     def title_beat(self):
-        title = label("fantastic_shift", 64, CYAN)
-        sub = label("unattended work shifts", 32)
+        title = label("fantastic_team", 64, CYAN)
+        sub = label("unattended work teams", 32)
         sub.next_to(title, DOWN, buff=0.4)
         self.play(FadeIn(title), FadeIn(sub), run_time=1.5)
         self.wait(1.5)
@@ -93,7 +93,7 @@ class HowItWorks(Scene):
 
     def workers_beat(self):
         disp_box = box(2.6, 1.0, BLUE)
-        disp_lbl = label("the shifter (AI)")
+        disp_lbl = label("the lead (AI)")
         self.dispatcher = VGroup(disp_box, disp_lbl).move_to([0, 0.6, 0])
 
         names = ["worker · Haiku", "worker · Haiku", "worker · Qwen (local GPU)"]
@@ -112,7 +112,7 @@ class HowItWorks(Scene):
             for y in ys
         ])
         self.play(FadeIn(self.dispatcher), run_time=1)
-        self.caption("the shifter, an AI agent, spawns its workers — any model")
+        self.caption("the lead, an AI agent, spawns its workers — any model")
         centre = self.dispatcher.get_center()
         for w, d in zip(self.workers, self.dots):
             self.play(GrowFromPoint(w, centre), FadeIn(d), run_time=1)
@@ -213,7 +213,7 @@ class HowItWorks(Scene):
 
     def end_beat(self):
         self.clear_all()
-        end = label("github.com/aisixteen/fantastic_shift", 36, CYAN)
+        end = label("github.com/aisixteen/fantastic_team", 36, CYAN)
         self.play(FadeIn(end), run_time=1)
         self.wait(2.5)
         self.play(FadeOut(end), run_time=0.8)

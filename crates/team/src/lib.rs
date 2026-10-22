@@ -11,6 +11,7 @@ pub mod config;
 pub mod dispatcher;
 pub mod instructions;
 pub mod puller;
+pub mod repo_config;
 pub mod setup_github;
 pub mod tree;
 pub mod worker_view;

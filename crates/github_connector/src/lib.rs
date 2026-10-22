@@ -23,6 +23,8 @@ mod verbs;
 mod tests;
 #[cfg(test)]
 mod tests_secrets;
+#[cfg(test)]
+mod tests_read_file;
 
 use std::sync::{Arc, OnceLock};
 

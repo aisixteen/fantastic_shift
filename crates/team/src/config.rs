@@ -374,7 +374,7 @@ mod tests {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/team.yaml");
         let cfg = load(&path).unwrap();
         let keys: Vec<&str> = cfg.templates.keys().map(String::as_str).collect();
-        assert_eq!(keys, ["local", "small", "strong"]);
+        assert_eq!(keys, ["issue_keeper", "local", "small", "strong"]);
         assert_eq!(cfg.first_agent.id, "lead");
         assert_eq!(cfg.first_agent.template, "strong");
         assert_eq!(

@@ -14,6 +14,14 @@ It is not only for code. A task is any piece of work that can be described exact
 | Review | "check this PR against our rules" | a review with findings |
 | Translation, ports | "port this module to Python, same behaviour" | the port, with its tests |
 
+## The shifter
+
+A shift is run by **the shifter**: an AI agent that works from a directive. It spawns worker agents when there is work, gives each a task, checks on them, pushes a worker that stops early, stops one that goes off the rails, and deletes workers when the queue is empty. The shifter is configured, not programmed: its model, its directive, the worker templates it may spawn (model, backend, credentials ref, limits) and the connectors it may use all come from `shift.yaml`. No provider or model is named in the code.
+
+**Connectors** (GitHub, a plain git remote, others) are bound by configuration, each with its own directive — what the shifter and the workers may do with it, and how. A shift without connectors simply leaves its results as files.
+
+The one thing the code enforces itself is the sandbox: workers run commands with no forge credentials and cannot reach a forge from a shell. Only connectors can.
+
 ## A general-purpose shifter
 
 The shift itself knows nothing about code, GitHub, or any kind of work. It does one thing: it takes the next task, gives the task's **instructions** to a free worker, waits until the worker says it is done, records the time and cost, and pushes or stops a worker that stalls. Everything specific to the work — what to read, what to produce, which tools to use (files, commands, git, GitHub, nothing at all), how to check the result — is in the task's instructions. A coding task is just one kind of instructions; so is a research task or a triage task.
@@ -61,9 +69,10 @@ Results can stay as files in the shift's folder. When work belongs somewhere els
 | Part | What it is |
 |---|---|
 | `fantastic_shift` | The program: a headless fantastic host plus the agents below. `--canvas` adds fantastic's browser canvas to watch the shift. |
-| `queue` agent | Tasks and the dispatcher. |
-| `git` and `github` agents | Delivery. |
-| `shift.yaml` | Your workers (models, keys, how many), the delivery, the task source. |
+| the shifter | An AI agent configured in `shift.yaml`: its model, its directive, the worker templates it may spawn. |
+| `queue` agent | Tasks as data: add, list, take, mark done — the shifter's tool. |
+| connectors | `git`, `github` (optional): bound in `shift.yaml`, each with its directive. |
+| `shift.yaml` | The shifter, the worker templates (any backend, any model), the connectors and their directives, the task source. |
 | task templates | How to write a task that a worker can carry out alone. |
 
 ## Status

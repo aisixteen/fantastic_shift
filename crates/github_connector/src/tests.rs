@@ -543,6 +543,52 @@ async fn issue_view_returns_body_and_comments() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn label_events_returns_only_label_events_with_actors() {
+    let f = fx(json!({})).await;
+    mock_app(&f.gh).await;
+    Mock::given(method("GET"))
+        .and(path("/repos/acme/widgets/issues/3/events"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            {"event": "labeled", "label": {"name": "team-ready"}, "actor": {"login": "maintainer"}, "created_at": "2026-01-01T00:00:00Z"},
+            {"event": "closed", "label": null, "actor": {"login": "bob"}, "created_at": "2026-01-02T00:00:00Z"},
+            {"event": "unlabeled", "label": {"name": "team-ready"}, "actor": {"login": "bob"}, "created_at": "2026-01-03T00:00:00Z"}
+        ])))
+        .mount(&f.gh)
+        .await;
+    let r = f
+        .call(json!({"type": "label_events", "repo": "acme/widgets", "number": 3}))
+        .await;
+    assert_eq!(
+        r["events"],
+        json!([
+            {"event": "labeled", "label": "team-ready", "actor": "maintainer", "created_at": "2026-01-01T00:00:00Z"},
+            {"event": "unlabeled", "label": "team-ready", "actor": "bob", "created_at": "2026-01-03T00:00:00Z"}
+        ]),
+        "{r}"
+    );
+    assert!(!r.to_string().contains(&token()), "token leaked: {r}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn label_events_missing_issue_is_a_clear_error() {
+    let f = fx(json!({})).await;
+    mock_app(&f.gh).await;
+    Mock::given(method("GET"))
+        .and(path("/repos/acme/widgets/issues/99/events"))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({"message": "Not Found"})))
+        .mount(&f.gh)
+        .await;
+    let r = f
+        .call(json!({"type": "label_events", "repo": "acme/widgets", "number": 99}))
+        .await;
+    assert_eq!(
+        r["error"],
+        "team_github label_events: GitHub answered 404 to GET /repos/acme/widgets/issues/99/events: Not Found"
+    );
+    assert!(!r.to_string().contains(&token()), "token leaked: {r}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn comment_posts_the_body() {
     let f = fx(json!({})).await;
     mock_app(&f.gh).await;

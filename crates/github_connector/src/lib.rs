@@ -218,6 +218,7 @@ impl Bundle for GithubConnectorBundle {
             "pr_create": "pr_create {repo, branch, title, body?} → {repo, number, url, draft, base} (draft only)",
             "issues": "issues {repo, label?, state?} → {repo, issues: [{number, title, state, labels}]}",
             "issue_view": "issue_view {repo, number} → {repo, number, title, state, labels, body, comments}",
+            "label_events": "label_events {repo, number} → {repo, number, events: [{event, label, actor, created_at}]} (labeled and unlabeled only)",
             "comment": "comment {repo, number, body} → {repo, number, comment_id, url}",
             "label": "label {repo, number, add?, remove?} → {repo, number, labels}",
             "pr_status": "pr_status {repo, number} → {repo, number, state, draft, head_sha, checks, checks_summary, reviews, review_state}",

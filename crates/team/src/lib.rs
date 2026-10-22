@@ -8,6 +8,7 @@
 pub mod cadencer;
 pub mod config;
 pub mod instructions;
+pub mod puller;
 pub mod tree;
 
 use std::path::{Path, PathBuf};
@@ -33,6 +34,7 @@ pub fn register_team(reg: &mut BundleRegistry) {
         team_github_connector::HANDLER_MODULE,
         team_github_connector::GithubConnectorBundle,
     );
+    reg.register(puller::HANDLER_MODULE, puller::PullerBundle);
     reg.register(
         cadencer::HANDLER_MODULE,
         cadencer::CadencerBundle::default(),
@@ -295,6 +297,14 @@ mod tests {
         assert!(names.contains(&"team_github.tools"));
         // An `fantastic_tui::Extra` is a plain fn over the registry.
         let _extra: fantastic_tui::Extra = register_team;
+    }
+
+    #[test]
+    fn register_team_registers_puller() {
+        let mut reg = BundleRegistry::new();
+        register_team(&mut reg);
+        let names: Vec<&str> = reg.catalog().map(|(n, _)| n).collect();
+        assert!(names.contains(&"team_puller.tools"));
     }
 
     #[test]

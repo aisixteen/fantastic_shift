@@ -73,6 +73,7 @@ Results can stay as files in the team's folder. When work belongs somewhere else
 | `fantastic_team` | The program: fantastic's terminal-shell library (`fantastic-tui`) plus the agents below. Fully headless by default; `--port N` serves the web UI on 127.0.0.1:N; `--tui` opens the terminal UI. |
 | the lead | An AI agent configured in `team.yaml`: its model, its directive, the worker templates it may spawn. |
 | `queue` agent | Tasks as data: add, list, take, mark done — the lead's tool. |
+| `team_puller.tools` | Puller: `pull` reads `team-ready` issues from the github connector (only when the latest label event is by the maintainer and the `## SPEC` comment is by the maintainer or the app) and writes `queue/<repo>-<n>.md` plus a pending `.state`; `status` answers. It never overwrites a state file. |
 | connectors | `git` (`team_git.tools`: worktrees, commits, pushes to any remote; never the default branch, never a force), `github` (optional, `team_github.tools`: a GitHub App you register yourself — push via the git connector, draft PRs, issues, comments, labels, PR status; a repo allowlist; tokens minted per call): bound in `team.yaml`, each with its directive. |
 | `team.yaml` | The lead, the worker templates (any backend, any model), the connectors and their directives, the task source. |
 | task templates | How to write a task that a worker can carry out alone. |

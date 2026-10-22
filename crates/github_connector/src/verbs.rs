@@ -41,6 +41,7 @@ pub(crate) async fn dispatch(
         "pr_create" => pr_create(id, kernel, cfg, p).await,
         "issues" => issues(id, kernel, cfg, p).await,
         "issue_view" => issue_view(id, kernel, cfg, p).await,
+        "label_events" => label_events(id, kernel, cfg, p).await,
         "comment" => comment(id, kernel, cfg, p).await,
         "label" => label(id, kernel, cfg, p).await,
         "pr_status" => pr_status(id, kernel, cfg, p).await,
@@ -355,6 +356,54 @@ async fn issue_view(id: &AgentId, kernel: &Arc<Kernel>, cfg: &Cfg, p: &Value) ->
             "body": issue["body"].as_str().unwrap_or(""),
             "comments": list,
         }))
+    }
+    .await;
+    finish(r, &token)
+}
+
+async fn label_events(id: &AgentId, kernel: &Arc<Kernel>, cfg: &Cfg, p: &Value) -> Value {
+    const V: &str = "label_events";
+    let repo = match repo_arg(p, V, cfg) {
+        Ok(r) => r,
+        Err(e) => return e,
+    };
+    let number = match number_arg(p, V) {
+        Ok(n) => n,
+        Err(e) => return e,
+    };
+    let api = Api::new(cfg);
+    let token = match app::token_for(id, kernel, cfg, &api, V, &repo).await {
+        Ok(t) => t,
+        Err(e) => return e,
+    };
+    let r: Result<Value, Value> = async {
+        let events = ge(api
+            .call(
+                V,
+                Method::GET,
+                &format!("/repos/{repo}/issues/{number}/events"),
+                &[("per_page", "100".into())],
+                &token,
+                None,
+            )
+            .await)?;
+        let list: Vec<Value> = events
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter(|e| matches!(e["event"].as_str(), Some("labeled" | "unlabeled")))
+                    .map(|e| {
+                        json!({
+                            "event": e["event"],
+                            "label": e["label"]["name"],
+                            "actor": e["actor"]["login"],
+                            "created_at": e["created_at"],
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        Ok(json!({"repo": repo, "number": number, "events": list}))
     }
     .await;
     finish(r, &token)

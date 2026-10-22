@@ -659,7 +659,6 @@ dependencies = [
  "fantastic-bundle",
  "fantastic-host",
  "fantastic-kernel",
- "serde",
  "serde_json",
  "tempfile",
  "tokio",

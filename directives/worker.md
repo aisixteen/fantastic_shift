@@ -1,6 +1,6 @@
 # The worker directive
 
-You are a WORKER on a shift. You carry out tasks from a queue, one at a time, until the queue has none left for you. The message that starts you names your own id (YOU) and the files agent that serves the queue folder (QUEUE). Each task's own instructions say what the work is, which tools to use and how to check it. This directive says only how to claim a task, keep it, and hand it back.
+You are a WORKER on a team. You carry out tasks from a queue, one at a time, until the queue has none left for you. The message that starts you names your own id (YOU) and the files agent that serves the queue folder (QUEUE). Each task's own instructions say what the work is, which tools to use and how to check it. This directive says only how to claim a task, keep it, and hand it back.
 
 ## The queue
 
@@ -41,4 +41,4 @@ The one write you make, with only its JSON changing from step to step:
 
 ## When you are pushed
 
-Whoever runs the shift may send you a message after you stop. It names the next step: continue the task from there. The task is still yours until you hand it back; when its U has passed meanwhile, renew it first (step 5).
+Whoever runs the team may send you a message after you stop. It names the next step: continue the task from there. The task is still yours until you hand it back; when its U has passed meanwhile, renew it first (step 5).

@@ -1,6 +1,6 @@
 use fantastic_kernel::bootstrap::{self, DEFAULT_ROOT_ID};
 use fantastic_kernel::{Item, Kernel};
-use fantastic_shift::worker_exec::*;
+use fantastic_team::worker_exec::*;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -14,8 +14,8 @@ const PLANTED_ENV: &[(&str, &str)] = &[
     ("SSH_AUTH_SOCK", "/tmp/planted-agent.sock"),
     ("GIT_ASKPASS", "/bin/planted-askpass"),
     ("SSH_ASKPASS", "/bin/planted-askpass"),
-    ("FANTASTIC_SHIFT_PLANTED_TOKEN", "planted-x-token"),
-    ("FANTASTIC_SHIFT_PLANTED_KEY", "planted-x-key"),
+    ("FANTASTIC_TEAM_PLANTED_TOKEN", "planted-x-token"),
+    ("FANTASTIC_TEAM_PLANTED_KEY", "planted-x-key"),
     ("ANTHROPIC_API_KEY", "planted-anthropic-key"),
 ];
 
@@ -56,10 +56,10 @@ fn plant() -> PathBuf {
         .join("planted-home")
 }
 
-async fn boot(shift: &Path, id: &str, allowed: Option<Value>) -> Arc<Kernel> {
-    prepare_sandbox(shift).unwrap();
-    let kernel = fantastic_shift::start(shift).await.unwrap();
-    let mut rec = worker_exec_record(shift);
+async fn boot(team: &Path, id: &str, allowed: Option<Value>) -> Arc<Kernel> {
+    prepare_sandbox(team).unwrap();
+    let kernel = fantastic_team::start(team).await.unwrap();
+    let mut rec = worker_exec_record(team);
     if let Some(a) = allowed {
         rec["allowed"] = a;
     }
@@ -79,9 +79,9 @@ async fn boot(shift: &Path, id: &str, allowed: Option<Value>) -> Arc<Kernel> {
     kernel
 }
 
-async fn down(kernel: Arc<Kernel>, shift: &Path) {
+async fn down(kernel: Arc<Kernel>, team: &Path) {
     kernel.shutdown().await;
-    bootstrap::shutdown(shift).unwrap();
+    bootstrap::shutdown(team).unwrap();
 }
 
 async fn run(kernel: &Arc<Kernel>, id: &str, command: &str, args: &[&str]) -> Value {
@@ -135,7 +135,7 @@ async fn auth_wall() -> (u16, Arc<AtomicUsize>, Arc<AtomicBool>) {
                 {
                     a.store(true, Ordering::SeqCst);
                 }
-                let _ = s.write_all(b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"shift-test\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await;
+                let _ = s.write_all(b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"team-test\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await;
                 let _ = s.shutdown().await;
             });
         }
@@ -183,12 +183,12 @@ async fn repo_with_a_commit(dir: &Path) {
 async fn a_worker_shell_sees_the_sandbox_home_and_no_credentials() {
     let planted = plant();
     let _ = planted;
-    let shift = TempDir::new().unwrap();
-    let kernel = boot(shift.path(), "worker_exec_env", None).await;
+    let team = TempDir::new().unwrap();
+    let kernel = boot(team.path(), "worker_exec_env", None).await;
     let reply = run(&kernel, "worker_exec_env", "sh", &["-c", "echo $HOME; env"]).await;
     assert_eq!(reply["exit_code"], json!(0), "{reply}");
     let out = lines(&reply);
-    let home = sandbox_home(shift.path()).to_string_lossy().into_owned();
+    let home = sandbox_home(team.path()).to_string_lossy().into_owned();
     assert!(out.contains(&home), "{out:?}");
     for l in &out {
         if let Some((name, _)) = l.split_once('=') {
@@ -200,7 +200,7 @@ async fn a_worker_shell_sees_the_sandbox_home_and_no_credentials() {
         }
         assert!(!l.contains("planted"), "planted value leaked: {l}");
     }
-    down(kernel, shift.path()).await;
+    down(kernel, team.path()).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -223,11 +223,11 @@ async fn a_push_from_a_worker_sends_no_credentials() {
     );
 
     // WORKER: the same push through a record with only `allowed` widened.
-    let shift = TempDir::new().unwrap();
+    let team = TempDir::new().unwrap();
     let (port, hits, saw) = auth_wall().await;
     let url = format!("http://127.0.0.1:{port}/r.git");
-    let kernel = boot(shift.path(), "worker_exec_push", Some(json!([".*"]))).await;
-    repo_with_a_commit(&work_dir(shift.path())).await;
+    let kernel = boot(team.path(), "worker_exec_push", Some(json!([".*"]))).await;
+    repo_with_a_commit(&work_dir(team.path())).await;
     let reply = run(
         &kernel,
         "worker_exec_push",
@@ -249,15 +249,15 @@ async fn a_push_from_a_worker_sends_no_credentials() {
             || joined.contains("Authentication failed"),
         "{joined}"
     );
-    down(kernel, shift.path()).await;
+    down(kernel, team.path()).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn forge_commands_are_refused_before_they_run() {
     let planted = plant();
     let _ = planted;
-    let shift = TempDir::new().unwrap();
-    let kernel = boot(shift.path(), "worker_exec_gate", None).await;
+    let team = TempDir::new().unwrap();
+    let kernel = boot(team.path(), "worker_exec_gate", None).await;
     let cases: [(&str, &[&str]); 3] = [
         ("gh", &["--version"]),
         ("git", &["push", "origin", "HEAD"]),
@@ -275,5 +275,5 @@ async fn forge_commands_are_refused_before_they_run() {
         );
         assert!(reply.get("job_id").is_none(), "{reply}");
     }
-    down(kernel, shift.path()).await;
+    down(kernel, team.path()).await;
 }

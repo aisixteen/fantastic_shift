@@ -717,35 +717,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fantastic-shift"
-version = "0.1.0"
-dependencies = [
- "fantastic-bundle",
- "fantastic-exec-bridge",
- "fantastic-host",
- "fantastic-kernel",
- "fantastic-shift-secrets-guard",
- "serde",
- "serde_json",
- "shift-git-connector",
- "shift-github-connector",
- "tempfile",
- "tokio",
-]
-
-[[package]]
-name = "fantastic-shift-secrets-guard"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "base64 0.22.1",
- "fantastic-kernel",
- "serde_json",
- "tempfile",
- "tokio",
-]
-
-[[package]]
 name = "fantastic-static-loader"
 version = "0.1.0"
 source = "git+https://github.com/aisixteen/fantastic?branch=fix%2F248-fantastic-host-haiku#7c076d1cad18176f1c1a16db4122973acf5171ac"
@@ -755,6 +726,35 @@ dependencies = [
  "fantastic-file",
  "fantastic-kernel",
  "serde_json",
+]
+
+[[package]]
+name = "fantastic-team"
+version = "0.1.0"
+dependencies = [
+ "fantastic-bundle",
+ "fantastic-exec-bridge",
+ "fantastic-host",
+ "fantastic-kernel",
+ "fantastic-team-secrets-guard",
+ "serde",
+ "serde_json",
+ "team-git-connector",
+ "team-github-connector",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "fantastic-team-secrets-guard"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "fantastic-kernel",
+ "serde_json",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -2120,43 +2120,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "shift-git-connector"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "base64 0.22.1",
- "fantastic-ai-core",
- "fantastic-credential-store",
- "fantastic-kernel",
- "fantastic-ram-store",
- "serde_json",
- "tempfile",
- "tokio",
-]
-
-[[package]]
-name = "shift-github-connector"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "base64 0.22.1",
- "fantastic-ai-core",
- "fantastic-credential-store",
- "fantastic-kernel",
- "fantastic-ram-store",
- "jsonwebtoken",
- "rand 0.8.8",
- "reqwest",
- "rsa",
- "serde",
- "serde_json",
- "shift-git-connector",
- "tempfile",
- "tokio",
- "wiremock",
-]
-
-[[package]]
 name = "shlex"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2290,6 +2253,43 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.9",
+]
+
+[[package]]
+name = "team-git-connector"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "fantastic-ai-core",
+ "fantastic-credential-store",
+ "fantastic-kernel",
+ "fantastic-ram-store",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "team-github-connector"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "fantastic-ai-core",
+ "fantastic-credential-store",
+ "fantastic-kernel",
+ "fantastic-ram-store",
+ "jsonwebtoken",
+ "rand 0.8.8",
+ "reqwest",
+ "rsa",
+ "serde",
+ "serde_json",
+ "team-git-connector",
+ "tempfile",
+ "tokio",
+ "wiremock",
 ]
 
 [[package]]

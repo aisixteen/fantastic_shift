@@ -1,5 +1,5 @@
 [package]
-name = "shift-git-connector"
+name = "team-git-connector"
 description = "The git connector agent: worktrees, commits and pushes of work branches to one remote, SSH or HTTPS."
 version.workspace = true
 edition.workspace = true
@@ -7,7 +7,7 @@ license.workspace = true
 publish = false
 
 [lib]
-name = "shift_git_connector"
+name = "team_git_connector"
 path = "src/lib.rs"
 
 [dependencies]

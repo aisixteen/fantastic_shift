@@ -1,20 +1,20 @@
-# Contributing to fantastic_shift
+# Contributing to fantastic_team
 
-fantastic_shift runs unattended work shifts on [fantastic](https://github.com/aisixteen/fantastic).
+fantastic_team runs unattended team work on [fantastic](https://github.com/aisixteen/fantastic).
 It is **AGPL-3.0-or-later**.
 
-> **Outside pull requests are not accepted.** Only the maintainer and the Fantastic Shift
+> **Outside pull requests are not accepted.** Only the maintainer and the AISixteen Fantastic Team
 > GitHub App open pull requests here. **Bug reports and ideas are welcome** as issues and
 > discussions; security problems go through private reporting ([`SECURITY.md`](SECURITY.md)).
 
-> **Alpha.** Configuration (`shift.yaml`), verbs and on-disk formats still change. See the
+> **Alpha.** Configuration (`team.yaml`), verbs and on-disk formats still change. See the
 > roadmap, issue #1.
 
 ## How work happens here
 
-- Issues carry the spec. An issue labelled `shift-ready` with a `## SPEC` comment may be taken
-  by a shift worker; `shift-pr` marks the PR it opened. `aiagent` is set by the maintainer only.
-- Workers open **draft** PRs. The maintainer reviews and approves; the shift merges only PRs
+- Issues carry the spec. An issue labelled `team-ready` with a `## SPEC` comment may be taken
+  by a team worker; `team-pr` marks the PR it opened. `aiagent` is set by the maintainer only.
+- Workers open **draft** PRs. The maintainer reviews and approves; the team merges only PRs
   approved on their current head.
 - CI is run by hand (#46): units by default, the e2e for a finished milestone or a release.
 

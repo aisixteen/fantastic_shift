@@ -12,11 +12,11 @@ use serde_json::{json, Value};
 use crate::api::{redact, Api};
 use crate::{app, bad, push, Cfg, SENTENCE, UNHANDLED};
 
-const STATE_TEXT: &str = "shift_github issues: `state` must be open, closed or all";
+const STATE_TEXT: &str = "team_github issues: `state` must be open, closed or all";
 const LABEL_TEXT: &str =
-    "shift_github label: give `add` and/or `remove` — each a non-empty list of label names";
+    "team_github label: give `add` and/or `remove` — each a non-empty list of label names";
 const DRAFT_TEXT: &str =
-    "shift_github pr_create: pull requests are opened as drafts only — a person marks one ready";
+    "team_github pr_create: pull requests are opened as drafts only — a person marks one ready";
 
 /// Route one verb to its handler.
 pub(crate) async fn dispatch(
@@ -45,7 +45,7 @@ pub(crate) async fn dispatch(
         "label" => label(id, kernel, cfg, p).await,
         "pr_status" => pr_status(id, kernel, cfg, p).await,
         other => {
-            let mut r = refusal(UNHANDLED, format!("shift_github: unknown type '{other}'"));
+            let mut r = refusal(UNHANDLED, format!("team_github: unknown type '{other}'"));
             with(&mut r, "verb", json!(other));
             r
         }
@@ -69,7 +69,7 @@ fn repo_arg(p: &Value, verb: &str, cfg: &Cfg) -> Result<String, Value> {
         Some(r) => Ok(r.clone()),
         None => Err(bad(
             format!(
-                "shift_github {verb}: `{raw}` is not in this connector's repos ({})",
+                "team_github {verb}: `{raw}` is not in this connector's repos ({})",
                 cfg.repos.join(", ")
             ),
             "repo",
@@ -82,7 +82,7 @@ fn number_arg(p: &Value, verb: &str) -> Result<u64, Value> {
     match p.get("number").and_then(|v| v.as_u64()) {
         Some(n) if n > 0 => Ok(n),
         _ => Err(bad(
-            format!("shift_github {verb}: `number` must be a positive int"),
+            format!("team_github {verb}: `number` must be a positive int"),
             "number",
             p.get("number").cloned().unwrap_or(Value::Null),
         )),
@@ -142,7 +142,7 @@ fn finish(r: Result<Value, Value>, token: &str) -> Value {
 
 fn base_refusal(branch: &str) -> Value {
     bad(
-        format!("shift_github pr_create: `{branch}` is a base branch (the default branch, main or master) — open the pull request from a work branch"),
+        format!("team_github pr_create: `{branch}` is a base branch (the default branch, main or master) — open the pull request from a work branch"),
         "branch",
         json!(branch),
     )

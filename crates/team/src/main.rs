@@ -1,6 +1,6 @@
 use std::process::ExitCode;
 
-use fantastic_shift::{parse_args, run};
+use fantastic_team::{parse_args, run};
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -15,7 +15,7 @@ async fn main() -> ExitCode {
     match run(args).await {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("[shift] {e}");
+            eprintln!("[team] {e}");
             ExitCode::from(1)
         }
     }

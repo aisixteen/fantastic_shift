@@ -1,5 +1,5 @@
 [package]
-name = "fantastic-shift-secrets-guard"
+name = "fantastic-team-secrets-guard"
 description = "Test helper: proves no secret leaves an agent — not in a reply, an error, an event, a store row, a record or a file."
 version.workspace = true
 edition.workspace = true

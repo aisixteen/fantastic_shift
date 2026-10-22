@@ -26,7 +26,7 @@ static ISOLATE: Once = Once::new();
 
 pub(crate) fn isolate() {
     ISOLATE.call_once(|| {
-        let p = std::env::temp_dir().join("shift-github-tests.gitconfig");
+        let p = std::env::temp_dir().join("team-github-tests.gitconfig");
         std::fs::write(&p, "").unwrap();
         std::env::set_var("GIT_CONFIG_GLOBAL", &p);
         std::env::set_var("GIT_CONFIG_NOSYSTEM", "1");
@@ -130,8 +130,8 @@ pub(crate) async fn fx(extra: Value) -> Fx {
         fantastic_credential_store::test_support::bundle(),
     );
     reg.register(
-        shift_git_connector::HANDLER_MODULE,
-        shift_git_connector::GitConnectorBundle,
+        team_git_connector::HANDLER_MODULE,
+        team_git_connector::GitConnectorBundle,
     );
     reg.register(HANDLER_MODULE, GithubConnectorBundle);
     let booted = bootstrap::bootstrap(reg, BootstrapOptions::in_memory()).unwrap();
@@ -271,20 +271,20 @@ async fn issues_lists_numbers_titles_labels_without_prs() {
     mock_app(&f.gh).await;
     Mock::given(method("GET"))
         .and(path("/repos/acme/widgets/issues"))
-        .and(query_param("labels", "shift"))
+        .and(query_param("labels", "team"))
         .and(query_param("state", "open"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-            {"number": 1, "title": "a", "state": "open", "labels": [{"name": "shift"}]},
+            {"number": 1, "title": "a", "state": "open", "labels": [{"name": "team"}]},
             {"number": 2, "title": "pr", "state": "open", "labels": [], "pull_request": {}}
         ])))
         .mount(&f.gh)
         .await;
     let r = f
-        .call(json!({"type": "issues", "repo": "acme/widgets", "label": "shift"}))
+        .call(json!({"type": "issues", "repo": "acme/widgets", "label": "team"}))
         .await;
     assert_eq!(
         r["issues"],
-        json!([{"number": 1, "title": "a", "state": "open", "labels": ["shift"]}]),
+        json!([{"number": 1, "title": "a", "state": "open", "labels": ["team"]}]),
         "{r}"
     );
     let bad = f
@@ -292,7 +292,7 @@ async fn issues_lists_numbers_titles_labels_without_prs() {
         .await;
     assert_eq!(
         bad["error"],
-        "shift_github issues: `state` must be open, closed or all"
+        "team_github issues: `state` must be open, closed or all"
     );
 }
 
@@ -372,7 +372,7 @@ async fn an_api_error_is_named_without_secrets() {
         .await;
     assert_eq!(
         r["error"],
-        "shift_github issue_view: GitHub answered 404 to GET /repos/acme/widgets/issues/99: Not Found"
+        "team_github issue_view: GitHub answered 404 to GET /repos/acme/widgets/issues/99: Not Found"
     );
     assert_eq!(r["status"], 404);
 }
@@ -477,13 +477,13 @@ async fn setup(f: &Fx, remote: &str) {
                 "type": "create_agent",
                 "parent_id": bootstrap::DEFAULT_ROOT_ID,
                 "id": "git",
-                "handler_module": shift_git_connector::HANDLER_MODULE,
+                "handler_module": team_git_connector::HANDLER_MODULE,
                 "repo_dir": repo.to_string_lossy().into_owned(),
                 "workspace_root": ws.to_string_lossy().into_owned(),
                 "remote": remote,
                 "default_branch": "main",
-                "author_name": "Shift Bot",
-                "author_email": "bot@shift.test"
+                "author_name": "Team Bot",
+                "author_email": "bot@team.test"
             }),
         )])
         .await
@@ -506,7 +506,7 @@ async fn forge() -> MockServer {
     let s = MockServer::start().await;
     Mock::given(any())
         .respond_with(
-            ResponseTemplate::new(401).insert_header("WWW-Authenticate", "Basic realm=\"shift\""),
+            ResponseTemplate::new(401).insert_header("WWW-Authenticate", "Basic realm=\"team\""),
         )
         .mount(&s)
         .await;
@@ -798,7 +798,7 @@ async fn missing_credentials_name_the_ref() {
         r["error"]
             .as_str()
             .unwrap()
-            .starts_with("shift_github: credential `github/nope` in `creds`:"),
+            .starts_with("team_github: credential `github/nope` in `creds`:"),
         "{r}"
     );
 }

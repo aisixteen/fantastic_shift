@@ -1,6 +1,6 @@
-# github connector (`shift_github.tools`)
+# github connector (`team_github.tools`)
 
-One GitHub App, many repos. The connector is optional: bind it in `shift.yaml` with a `directive`, which says what the shifter and its workers may do with it.
+One GitHub App, many repos. The connector is optional: bind it in `team.yaml` with a `directive`, which says what the lead and its workers may do with it.
 
 Record fields: `app` (`{credentials: {store, ref}}`: the ref holds `app_id` and `private_key`, a PEM RSA key, bound to `api_url`'s host), `repos` (the allowlist, `owner/name`), `api_url` (default `https://api.github.com`), `git` (a git connector agent whose worktrees push uses), `directive`, `timeout_s`.
 

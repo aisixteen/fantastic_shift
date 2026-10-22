@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in the shift (the headless binary, a connector, the web UI, the app) is broken.
+description: Something in the team (the headless binary, a connector, the web UI, the app) is broken.
 labels: ["bug"]
 body:
   - type: markdown
@@ -14,8 +14,8 @@ body:
       label: Part(s)
       multiple: true
       options:
-        - headless binary (fantastic_shift)
-        - workers / shifter (directives, the queue, claims)
+        - headless binary (fantastic_team)
+        - workers / lead (directives, the queue, claims)
         - git connector
         - github connector (the GitHub App)
         - remote runner / tunnel
@@ -43,7 +43,7 @@ body:
     id: repro
     attributes:
       label: Steps to reproduce
-      description: Commands, the relevant part of shift.yaml (no keys), and what the workers were doing.
+      description: Commands, the relevant part of team.yaml (no keys), and what the workers were doing.
       render: shell
     validations:
       required: true

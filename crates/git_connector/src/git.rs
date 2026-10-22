@@ -30,10 +30,10 @@ pub struct Auth {
 
 /// Resets every configured helper, then supplies ours. Reads the token from
 /// the child's environment only.
-pub(crate) const HELPER: &str = r#"credential.helper=!f() { test "$1" = get || exit 0; p=; h=; while IFS='=' read -r k v; do case "$k" in protocol) p=$v;; host) h=$v;; esac; done; test "$h" = "$SHIFT_GIT_HOST" && test "$p" = "$SHIFT_GIT_PROTO" || exit 0; echo "username=$SHIFT_GIT_USERNAME"; echo "password=$SHIFT_GIT_TOKEN"; }; f"#;
+pub(crate) const HELPER: &str = r#"credential.helper=!f() { test "$1" = get || exit 0; p=; h=; while IFS='=' read -r k v; do case "$k" in protocol) p=$v;; host) h=$v;; esac; done; test "$h" = "$TEAM_GIT_HOST" && test "$p" = "$TEAM_GIT_PROTO" || exit 0; echo "username=$TEAM_GIT_USERNAME"; echo "password=$TEAM_GIT_TOKEN"; }; f"#;
 
-const PLAIN_HTTP: &str = "shift_git: credentials are sent only over https (or http to 127.0.0.1, ::1 or localhost) — refused";
-const FORCE: &str = "shift_git push: a force push is never made — push a new branch name instead";
+const PLAIN_HTTP: &str = "team_git: credentials are sent only over https (or http to 127.0.0.1, ::1 or localhost) — refused";
+const FORCE: &str = "team_git push: a force push is never made — push a new branch name instead";
 const REWRITES: &str = "git connector: the repository rewrites its remote URL (insteadOf), refusing to send credentials";
 
 /// True when a `url.<x>.insteadOf` or `url.<x>.pushInsteadOf` rule in `dir`
@@ -53,7 +53,7 @@ pub(crate) async fn rewrites_url(dir: &Path, url: &str) -> bool {
             .unwrap_or(false)
     })
 }
-const TRAILER: &str = "shift_git commit: each trailer is one `Key: value` line";
+const TRAILER: &str = "team_git commit: each trailer is one `Key: value` line";
 
 fn s(p: &Path) -> String {
     p.to_string_lossy().into_owned()
@@ -122,7 +122,7 @@ fn arg<'a>(p: &'a Value, verb: &str, name: &str) -> Result<&'a str, Value> {
 fn dash(verb: &str, name: &str, value: &str) -> Result<(), Value> {
     if value.starts_with('-') {
         Err(bad(
-            format!("shift_git {verb}: `{name}` must not start with `-`"),
+            format!("team_git {verb}: `{name}` must not start with `-`"),
             name,
             json!(name),
         ))
@@ -180,10 +180,10 @@ pub async fn run(
             "-c",
             "core.hooksPath=/dev/null",
         ]);
-        cmd.env("SHIFT_GIT_USERNAME", &a.username)
-            .env("SHIFT_GIT_TOKEN", &a.token)
-            .env("SHIFT_GIT_HOST", &a.host)
-            .env("SHIFT_GIT_PROTO", &a.proto);
+        cmd.env("TEAM_GIT_USERNAME", &a.username)
+            .env("TEAM_GIT_TOKEN", &a.token)
+            .env("TEAM_GIT_HOST", &a.host)
+            .env("TEAM_GIT_PROTO", &a.proto);
     }
     cmd.args(args);
     cmd.env("GIT_TERMINAL_PROMPT", "0")
@@ -209,14 +209,14 @@ pub async fn run(
 
     let out = tokio::time::timeout(Duration::from_secs(cfg.timeout_s), cmd.output())
         .await
-        .map_err(|_| json!({"error": format!("shift_git {verb}: git timed out after {}s", cfg.timeout_s)}))?
-        .map_err(|e| json!({"error": redact(&format!("shift_git {verb}: could not run git: {e}"), auth)}))?;
+        .map_err(|_| json!({"error": format!("team_git {verb}: git timed out after {}s", cfg.timeout_s)}))?
+        .map_err(|e| json!({"error": redact(&format!("team_git {verb}: could not run git: {e}"), auth)}))?;
 
     if !out.status.success() {
         let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
         let code = out.status.code().unwrap_or(-1);
         return Err(json!({"error": redact(
-            &format!("shift_git {verb}: git failed (exit {code}): {stderr}"),
+            &format!("team_git {verb}: git failed (exit {code}): {stderr}"),
             auth,
         )}));
     }
@@ -343,7 +343,7 @@ async fn check_branch(cfg: &Cfg, verb: &str, branch: &str) -> Result<(), Value> 
     .map(|_| ())
     .map_err(|_| {
         bad(
-            format!("shift_git {verb}: `{branch}` is not a valid branch name"),
+            format!("team_git {verb}: `{branch}` is not a valid branch name"),
             "branch",
             json!(branch),
         )
@@ -361,7 +361,7 @@ pub(crate) async fn worktree_add(cfg: &Cfg, p: &Value) -> Result<Value, Value> {
     let path = inside_root(&cfg.workspace_root, raw, V)?;
     if path.exists() {
         return Err(bad(
-            format!("shift_git worktree_add: `{raw}` already exists"),
+            format!("team_git worktree_add: `{raw}` already exists"),
             "path",
             json!(raw),
         ));
@@ -437,7 +437,7 @@ pub(crate) async fn commit(cfg: &Cfg, p: &Value) -> Result<Value, Value> {
     let st = run(cfg, &path, &[], &["status", "--porcelain"], None, V).await?;
     if st.trim().is_empty() {
         return Err(bad(
-            format!("shift_git commit: nothing to commit in `{raw}`"),
+            format!("team_git commit: nothing to commit in `{raw}`"),
             "path",
             json!(raw),
         ));
@@ -482,7 +482,7 @@ pub async fn check_push(cfg: &Cfg, p: &Value) -> Result<(String, PathBuf), Value
     }
     if branch == cfg.default_branch.as_str() || branch == "main" || branch == "master" {
         return Err(bad(
-            format!("shift_git push: `{branch}` is a protected branch (the default branch, main or master) — push a work branch instead"),
+            format!("team_git push: `{branch}` is a protected branch (the default branch, main or master) — push a work branch instead"),
             "branch",
             json!(branch),
         ));
@@ -556,7 +556,7 @@ async fn fetch_inner(
                 "fetch",
                 "--prune",
                 cfg.remote.as_str(),
-                "refs/heads/*:refs/remotes/shift/*",
+                "refs/heads/*:refs/remotes/team/*",
             ],
             slot.as_ref(),
             V,

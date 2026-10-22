@@ -1,4 +1,4 @@
-//! What `shift.yaml` holds: the agent templates an agent may start agents
+//! What `team.yaml` holds: the agent templates an agent may start agents
 //! from, the connectors and their directives, the queue's id, and the
 //! credential store. It does not hold how many agents run (the first agent's
 //! instructions say that), nor any provider or model name in code.
@@ -10,8 +10,8 @@ use fantastic_kernel::bootstrap::DEFAULT_ROOT_ID;
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
 
-/// The file name the shift looks for in its directory.
-pub const FILE_NAME: &str = "shift.yaml";
+/// The file name the team looks for in its directory.
+pub const FILE_NAME: &str = "team.yaml";
 
 /// Keys a template's `extra` may not set.
 pub const RESERVED: [&str; 12] = [
@@ -35,7 +35,7 @@ pub const CONNECTOR_RESERVED: [&str; 4] = ["type", "id", "parent_id", "handler_m
 /// The whole file.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ShiftConfig {
+pub struct TeamConfig {
     /// The agent templates, by name.
     pub templates: BTreeMap<String, Template>,
     /// The agent the binary creates and instructs.
@@ -45,7 +45,7 @@ pub struct ShiftConfig {
     pub connectors: BTreeMap<String, Connector>,
     /// Where the queue lives.
     pub queue: QueueRef,
-    /// The credential store the shift creates when it has none.
+    /// The credential store the team creates when it has none.
     #[serde(default)]
     pub credentials: Option<CredentialStore>,
 }
@@ -127,7 +127,7 @@ pub struct QueueRef {
     pub id: String,
 }
 
-/// The credential store the shift creates when it has none.
+/// The credential store the team creates when it has none.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CredentialStore {
@@ -142,30 +142,30 @@ pub struct CredentialStore {
 }
 
 fn default_first_id() -> String {
-    "shifter".into()
+    "lead".into()
 }
 
 fn default_store_id() -> String {
     "credentials".into()
 }
 
-/// Parse and validate a `shift.yaml` text.
-pub fn parse(text: &str) -> Result<ShiftConfig, String> {
+/// Parse and validate a `team.yaml` text.
+pub fn parse(text: &str) -> Result<TeamConfig, String> {
     let v = fantastic_kernel::yaml_io::load(text).map_err(|e| format!("not YAML — {e}"))?;
-    let cfg: ShiftConfig = serde_json::from_value(v).map_err(|e| e.to_string())?;
+    let cfg: TeamConfig = serde_json::from_value(v).map_err(|e| e.to_string())?;
     validate(&cfg)?;
     Ok(cfg)
 }
 
 /// Read, parse and validate the file at `path`.
-pub fn load(path: &Path) -> Result<ShiftConfig, String> {
+pub fn load(path: &Path) -> Result<TeamConfig, String> {
     let text = std::fs::read_to_string(path)
         .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     parse(&text).map_err(|e| format!("{}: {e}", path.display()))
 }
 
 /// Check the cross-field rules; the first failure is the error.
-pub fn validate(cfg: &ShiftConfig) -> Result<(), String> {
+pub fn validate(cfg: &TeamConfig) -> Result<(), String> {
     if cfg.templates.is_empty() {
         return Err("templates is empty — declare at least one agent template".into());
     }
@@ -197,7 +197,7 @@ pub fn validate(cfg: &ShiftConfig) -> Result<(), String> {
         for key in t.extra.keys() {
             if RESERVED.contains(&key.as_str()) {
                 return Err(format!(
-                    "template `{n}`: extra.{key} is reserved — use the template's own field, or let the shift set it"
+                    "template `{n}`: extra.{key} is reserved — use the template's own field, or let the team set it"
                 ));
             }
         }
@@ -231,7 +231,7 @@ pub fn validate(cfg: &ShiftConfig) -> Result<(), String> {
         for key in conn.record.keys() {
             if CONNECTOR_RESERVED.contains(&key.as_str()) {
                 return Err(format!(
-                    "connector `{c}`: record.{key} is reserved — the shift sets it"
+                    "connector `{c}`: record.{key} is reserved — the team sets it"
                 ));
             }
         }
@@ -371,15 +371,15 @@ mod tests {
 
     #[test]
     fn the_example_parses() {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/shift.yaml");
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/team.yaml");
         let cfg = load(&path).unwrap();
         let keys: Vec<&str> = cfg.templates.keys().map(String::as_str).collect();
         assert_eq!(keys, ["local", "small", "strong"]);
-        assert_eq!(cfg.first_agent.id, "shifter");
+        assert_eq!(cfg.first_agent.id, "lead");
         assert_eq!(cfg.first_agent.template, "strong");
         assert_eq!(
             cfg.first_agent.directive_file.as_deref(),
-            Some("directives/shifter.md")
+            Some("directives/lead.md")
         );
         assert_eq!(cfg.templates["small"].price_input_per_mtok, Some(0.1));
         assert_eq!(
@@ -387,7 +387,7 @@ mod tests {
             "anthropic/api.anthropic.com"
         );
         assert_eq!(cfg.templates["strong"].extra["max_tokens"], json!(32000));
-        assert_eq!(cfg.connectors["git"].kind, "shift_git.tools");
+        assert_eq!(cfg.connectors["git"].kind, "team_git.tools");
         assert_eq!(cfg.connectors["git"].record["remote"], json!("origin"));
         assert_eq!(cfg.queue.id, "queue");
         assert_eq!(cfg.credentials.as_ref().unwrap().backend, "env");
@@ -395,7 +395,7 @@ mod tests {
 
     #[test]
     fn no_example_template_grants_exec_or_files() {
-        let cfg = parse(include_str!("../../../examples/shift.yaml")).unwrap();
+        let cfg = parse(include_str!("../../../examples/team.yaml")).unwrap();
         for (n, t) in &cfg.templates {
             for c in &t.can_call {
                 assert!(
@@ -409,7 +409,7 @@ mod tests {
     #[test]
     fn a_minimal_file_parses_with_defaults() {
         let cfg = parse(MIN).unwrap();
-        assert_eq!(cfg.first_agent.id, "shifter");
+        assert_eq!(cfg.first_agent.id, "lead");
         assert_eq!(cfg.first_agent.directive_file, None);
         assert!(cfg.connectors.is_empty());
         assert_eq!(cfg.credentials, None);
@@ -480,7 +480,7 @@ mod tests {
             .insert("memory_store_id".into(), json!("x"));
         assert_eq!(
             validate(&cfg).unwrap_err(),
-            "template `t`: extra.memory_store_id is reserved — use the template's own field, or let the shift set it"
+            "template `t`: extra.memory_store_id is reserved — use the template's own field, or let the team set it"
         );
 
         let mut cfg = base.clone();
@@ -510,7 +510,7 @@ mod tests {
         );
         assert_eq!(
             validate(&cfg).unwrap_err(),
-            "connector `c`: record.id is reserved — the shift sets it"
+            "connector `c`: record.id is reserved — the team sets it"
         );
 
         let mut cfg = base.clone();
@@ -610,7 +610,7 @@ mod tests {
             })
         );
         let c = Connector {
-            kind: "shift_git.tools".into(),
+            kind: "team_git.tools".into(),
             record: json!({"remote": "origin"}).as_object().unwrap().clone(),
             directive: None,
             directive_file: None,
@@ -621,7 +621,7 @@ mod tests {
                 "type": "create_agent",
                 "parent_id": "kernel_state",
                 "id": "git",
-                "handler_module": "shift_git.tools",
+                "handler_module": "team_git.tools",
                 "remote": "origin"
             })
         );
@@ -629,7 +629,7 @@ mod tests {
 
     #[test]
     fn a_missing_file_is_named() {
-        let e = load(Path::new("/nonexistent/shift.yaml")).unwrap_err();
-        assert!(e.starts_with("cannot read /nonexistent/shift.yaml: "));
+        let e = load(Path::new("/nonexistent/team.yaml")).unwrap_err();
+        assert!(e.starts_with("cannot read /nonexistent/team.yaml: "));
     }
 }

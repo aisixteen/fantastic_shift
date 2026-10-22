@@ -1,4 +1,4 @@
-# shift_git — the git connector
+# team_git — the git connector
 
 One agent is one local clone and one remote. It makes worktrees, commits
 and pushes work branches. Any remote works: SSH (`git@host:org/repo.git`,

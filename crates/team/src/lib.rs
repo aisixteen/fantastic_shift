@@ -5,12 +5,17 @@
 //! is a thin wrapper around `fantastic_tui::main_with`.
 #![deny(missing_docs)]
 
+pub mod board;
 pub mod cadencer;
 pub mod config;
+pub mod dispatcher;
 pub mod instructions;
 pub mod puller;
 pub mod repo_config;
+pub mod setup_github;
 pub mod tree;
+pub mod worker_view;
+pub mod webhook;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -36,9 +41,16 @@ pub fn register_team(reg: &mut BundleRegistry) {
         team_github_connector::GithubConnectorBundle,
     );
     reg.register(puller::HANDLER_MODULE, puller::PullerBundle);
+    reg.register(webhook::HANDLER_MODULE, webhook::WebhookBundle);
+    reg.register(board::HANDLER_MODULE, board::BoardBundle);
+    reg.register(dispatcher::HANDLER_MODULE, dispatcher::DispatcherBundle);
     reg.register(
         cadencer::HANDLER_MODULE,
         cadencer::CadencerBundle::default(),
+    );
+    reg.register(
+        worker_view::HANDLER_MODULE,
+        worker_view::WorkerViewBundle::default(),
     );
 }
 
@@ -64,6 +76,10 @@ pub fn registry() -> BundleRegistry {
     register_team(&mut reg);
     reg
 }
+
+/// The README for AIs (`docs/ai-readme.md`), built into the binary. It is printed
+/// by `fantastic_team ai-readme`.
+pub const AI_README: &str = include_str!("../../../docs/ai-readme.md");
 
 /// Usage text, printed on `--help` and on bad arguments.
 pub const USAGE: &str = "usage: fantastic_team [--dir PATH] [--port N | --tui]\n  no surface flag: fully headless (no port, no terminal UI)\n  --port N: serve the web UI on 127.0.0.1:N\n  --tui: the terminal UI (needs a terminal)\n  (`mcp`, `send` and `readme` as the first word run fantastic's own commands)";

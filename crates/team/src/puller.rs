@@ -3,10 +3,14 @@
 //! is accepted, what the task file says, what it is called). Issue text is
 //! untrusted: nothing here executes it.
 
+use std::sync::Arc;
+
 /// The label that marks an issue as ready for the team.
 pub const LABEL: &str = "team-ready";
 /// The first line of a spec comment.
 pub const SPEC_MARKER: &str = "## SPEC";
+/// The bundle's handler module name.
+pub const HANDLER_MODULE: &str = "team_puller.tools";
 
 /// One issue comment, as the github connector returns it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -111,28 +115,34 @@ pub fn decide(
     Ok(render_task(spec))
 }
 
-/// The bundle's handler module name.
-pub const HANDLER_MODULE: &str = "team_puller.tools";
+/// The agents the puller talks to: the github connector and the file bridge.
+/// The kernel implements it in production; tests give an in-memory fake.
+#[async_trait::async_trait]
+pub trait Peers: Send + Sync {
+    /// Send `payload` to agent `to` and return its reply (errors as a value).
+    async fn ask(&self, to: &str, payload: serde_json::Value) -> serde_json::Value;
+}
 
-/// Ask another agent and take its result. Errors come back as the reply value.
-async fn ask(
-    kernel: &std::sync::Arc<fantastic_kernel::Kernel>,
-    to: &str,
-    payload: serde_json::Value,
-) -> serde_json::Value {
-    kernel
-        .send(vec![fantastic_kernel::Item::new(
-            fantastic_kernel::AgentId::from(to),
-            payload,
-        )])
-        .await
-        .remove(0)
-        .result
+/// [`Peers`] over a running kernel.
+pub struct KernelPeers(pub Arc<fantastic_kernel::Kernel>);
+
+#[async_trait::async_trait]
+impl Peers for KernelPeers {
+    async fn ask(&self, to: &str, payload: serde_json::Value) -> serde_json::Value {
+        self.0
+            .send(vec![fantastic_kernel::Item::new(
+                fantastic_kernel::AgentId::from(to),
+                payload,
+            )])
+            .await
+            .remove(0)
+            .result
+    }
 }
 
 /// Read the puller's config from the agent's own record.
 fn cfg_of(
-    kernel: &std::sync::Arc<fantastic_kernel::Kernel>,
+    kernel: &Arc<fantastic_kernel::Kernel>,
     id: &fantastic_kernel::AgentId,
 ) -> Result<PullerCfg, String> {
     let meta = kernel
@@ -165,20 +175,47 @@ fn cfg_of(
     })
 }
 
+fn events_of(v: &serde_json::Value) -> Vec<LabelEvent> {
+    v["events"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .map(|e| LabelEvent {
+                    event: e["event"].as_str().unwrap_or("").into(),
+                    label: e["label"].as_str().unwrap_or("").into(),
+                    actor: e["actor"].as_str().unwrap_or("").into(),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn comments_of(v: &serde_json::Value) -> Vec<Comment> {
+    v["comments"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .map(|c| Comment {
+                    author: c["author"].as_str().unwrap_or("").into(),
+                    body: c["body"].as_str().unwrap_or("").into(),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// One pass: every `team-ready` issue on the configured repos, decided and,
 /// when accepted and new, written as a task file plus a pending state file.
-pub async fn pull(
-    kernel: &std::sync::Arc<fantastic_kernel::Kernel>,
-    cfg: &PullerCfg,
-) -> PullReport {
+/// An existing state file is never overwritten.
+pub async fn pull(peers: &dyn Peers, cfg: &PullerCfg) -> PullReport {
     let mut report = PullReport::default();
     for repo in &cfg.repos {
-        let listed = ask(
-            kernel,
-            &cfg.github,
-            serde_json::json!({"type": "issues", "repo": repo, "label": LABEL, "state": "open"}),
-        )
-        .await;
+        let listed = peers
+            .ask(
+                &cfg.github,
+                serde_json::json!({"type": "issues", "repo": repo, "label": LABEL, "state": "open"}),
+            )
+            .await;
         let Some(issues) = listed["issues"].as_array() else {
             report
                 .skipped
@@ -190,42 +227,19 @@ pub async fn pull(
                 continue;
             };
             let key = format!("{repo}#{number}");
-            let view = ask(
-                kernel,
-                &cfg.github,
-                serde_json::json!({"type": "issue_view", "repo": repo, "number": number}),
-            )
-            .await;
-            let events_r = ask(
-                kernel,
-                &cfg.github,
-                serde_json::json!({"type": "label_events", "repo": repo, "number": number}),
-            )
-            .await;
-            let events: Vec<LabelEvent> = events_r["events"]
-                .as_array()
-                .map(|a| {
-                    a.iter()
-                        .map(|e| LabelEvent {
-                            event: e["event"].as_str().unwrap_or("").into(),
-                            label: e["label"].as_str().unwrap_or("").into(),
-                            actor: e["actor"].as_str().unwrap_or("").into(),
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-            let comments: Vec<Comment> = view["comments"]
-                .as_array()
-                .map(|a| {
-                    a.iter()
-                        .map(|c| Comment {
-                            author: c["author"].as_str().unwrap_or("").into(),
-                            body: c["body"].as_str().unwrap_or("").into(),
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-            let text = match decide(&events, &comments, cfg) {
+            let view = peers
+                .ask(
+                    &cfg.github,
+                    serde_json::json!({"type": "issue_view", "repo": repo, "number": number}),
+                )
+                .await;
+            let events_r = peers
+                .ask(
+                    &cfg.github,
+                    serde_json::json!({"type": "label_events", "repo": repo, "number": number}),
+                )
+                .await;
+            let text = match decide(&events_of(&events_r), &comments_of(&view), cfg) {
                 Ok(t) => t,
                 Err(why) => {
                     report.skipped.push((key, why));
@@ -233,34 +247,34 @@ pub async fn pull(
                 }
             };
             let (md, state) = task_file_names(repo, number);
-            let existing = ask(
-                kernel,
-                &cfg.store,
-                serde_json::json!({"type": "read", "path": state}),
-            )
-            .await;
+            let existing = peers
+                .ask(
+                    &cfg.store,
+                    serde_json::json!({"type": "read", "path": state}),
+                )
+                .await;
             if existing.get("error").is_none() && existing.get("content").is_some() {
                 report.skipped.push((key, "state already exists".into()));
                 continue;
             }
-            let wrote = ask(
-                kernel,
-                &cfg.store,
-                serde_json::json!({"type": "write", "path": md, "bytes": text}),
-            )
-            .await;
+            let wrote = peers
+                .ask(
+                    &cfg.store,
+                    serde_json::json!({"type": "write", "path": md, "bytes": text}),
+                )
+                .await;
             if wrote.get("error").is_some() {
                 report
                     .skipped
                     .push((key, format!("task write failed: {wrote}")));
                 continue;
             }
-            let st = ask(
-                kernel,
-                &cfg.store,
-                serde_json::json!({"type": "write", "path": state, "bytes": new_state_body()}),
-            )
-            .await;
+            let st = peers
+                .ask(
+                    &cfg.store,
+                    serde_json::json!({"type": "write", "path": state, "bytes": new_state_body()}),
+                )
+                .await;
             if st.get("error").is_some() {
                 report
                     .skipped
@@ -293,7 +307,7 @@ impl fantastic_kernel::bundle::Bundle for PullerBundle {
         &self,
         agent_id: &fantastic_kernel::AgentId,
         payload: &serde_json::Value,
-        kernel: &std::sync::Arc<fantastic_kernel::Kernel>,
+        kernel: &Arc<fantastic_kernel::Kernel>,
     ) -> Result<fantastic_kernel::bundle::Reply, fantastic_kernel::bundle::BundleError> {
         let t = payload.get("type").and_then(|v| v.as_str()).unwrap_or("");
         if t == "boot" {
@@ -302,7 +316,7 @@ impl fantastic_kernel::bundle::Bundle for PullerBundle {
         let out = match (t, cfg_of(kernel, agent_id)) {
             (_, Err(e)) => serde_json::json!({"error": e}),
             ("pull", Ok(cfg)) => {
-                let r = pull(kernel, &cfg).await;
+                let r = pull(&KernelPeers(kernel.clone()), &cfg).await;
                 serde_json::json!({"created": r.created, "skipped": r.skipped})
             }
             ("status", Ok(_)) => serde_json::json!({}),
@@ -317,6 +331,8 @@ impl fantastic_kernel::bundle::Bundle for PullerBundle {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
+    use std::sync::Mutex;
 
     fn c(author: &str, body: &str) -> Comment {
         Comment {
@@ -329,6 +345,52 @@ mod tests {
             event: event.into(),
             label: LABEL.into(),
             actor: actor.into(),
+        }
+    }
+
+    /// In-memory file bridge and github connector: one issue, #25, accepted
+    /// by the maintainer, with files kept in a map.
+    struct Fake {
+        files: Mutex<BTreeMap<String, String>>,
+    }
+
+    #[async_trait::async_trait]
+    impl Peers for Fake {
+        async fn ask(&self, to: &str, p: serde_json::Value) -> serde_json::Value {
+            let kind = p["type"].as_str().unwrap_or("");
+            match (to, kind) {
+                ("gh", "issues") => serde_json::json!({"issues": [{"number": 25}]}),
+                ("gh", "issue_view") => serde_json::json!({
+                    "comments": [{"author": "maintainer", "body": "## SPEC\ndo it"}]
+                }),
+                ("gh", "label_events") => serde_json::json!({
+                    "events": [{"event": "labeled", "label": LABEL, "actor": "maintainer"}]
+                }),
+                ("store", "read") => {
+                    let path = p["path"].as_str().unwrap_or("");
+                    match self.files.lock().unwrap().get(path) {
+                        Some(content) => serde_json::json!({"content": content}),
+                        None => serde_json::json!({"error": "not found"}),
+                    }
+                }
+                ("store", "write") => {
+                    let path = p["path"].as_str().unwrap_or("").to_string();
+                    let bytes = p["bytes"].as_str().unwrap_or("").to_string();
+                    self.files.lock().unwrap().insert(path, bytes);
+                    serde_json::json!({"ok": true})
+                }
+                _ => serde_json::json!({"error": "unexpected"}),
+            }
+        }
+    }
+
+    fn cfg() -> PullerCfg {
+        PullerCfg {
+            repos: vec!["aisixteen/fantastic_team".into()],
+            maintainer: "maintainer".into(),
+            app: "app".into(),
+            github: "gh".into(),
+            store: "store".into(),
         }
     }
 
@@ -385,5 +447,43 @@ mod tests {
     #[test]
     fn new_state_is_pending() {
         assert_eq!(new_state_body().trim(), "pending");
+    }
+
+    #[tokio::test]
+    async fn pull_does_not_overwrite_existing_state() {
+        let state = "queue/aisixteen-fantastic_team-25.state";
+        let fake = Fake {
+            files: Mutex::new(BTreeMap::from([(state.to_string(), "done\n".to_string())])),
+        };
+        let r = pull(&fake, &cfg()).await;
+        assert!(r.created.is_empty(), "{r:?}");
+        assert_eq!(r.skipped.len(), 1, "{r:?}");
+        let files = fake.files.lock().unwrap();
+        assert_eq!(files.get(state).map(String::as_str), Some("done\n"));
+        assert!(!files.contains_key("queue/aisixteen-fantastic_team-25.md"));
+    }
+
+    #[tokio::test]
+    async fn new_state_is_pending_after_pull() {
+        let fake = Fake {
+            files: Mutex::new(BTreeMap::new()),
+        };
+        let r = pull(&fake, &cfg()).await;
+        assert_eq!(
+            r.created,
+            vec!["aisixteen/fantastic_team#25".to_string()],
+            "{r:?}"
+        );
+        let files = fake.files.lock().unwrap();
+        let state = files
+            .get("queue/aisixteen-fantastic_team-25.state")
+            .expect("state written");
+        assert_eq!(state.trim(), "pending");
+        assert_eq!(
+            files
+                .get("queue/aisixteen-fantastic_team-25.md")
+                .map(String::as_str),
+            Some("## SPEC\ndo it")
+        );
     }
 }

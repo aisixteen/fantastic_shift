@@ -293,6 +293,14 @@ mod tests {
     }
 
     #[test]
+    fn register_team_registers_puller() {
+        let mut reg = BundleRegistry::new();
+        register_team(&mut reg);
+        let names: Vec<&str> = reg.catalog().map(|(n, _)| n).collect();
+        assert!(names.contains(&"team_puller.tools"));
+    }
+
+    #[test]
     fn args_default_to_the_current_directory() {
         let a = parse_args(&[]).unwrap();
         assert_eq!(a.dir, std::env::current_dir().unwrap());

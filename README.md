@@ -1,6 +1,6 @@
 # AISixteen Fantastic Team
 
-Program: `fantastic_team`.
+Program: `fantastic_team`. Install: docs/install.md
 
 **Unattended team work on [fantastic](https://github.com/aisixteen/fantastic).** You queue tasks; a team of AI workers takes them one by one, does the work on its own, and hands back finished results for you to review. You come back to done work, not to a chat.
 
@@ -19,6 +19,8 @@ It is not only for code. A task is any piece of work that can be described exact
 ## The lead
 
 A team is run by **the lead**: an AI agent that works from a directive. It spawns worker agents when there is work, gives each a task, checks on them, pushes a worker that stops early, stops one that goes off the rails, and deletes workers when the queue is empty. The lead is configured, not programmed: its model, its directive, the worker templates it may spawn (model, backend, credentials ref, limits) and the connectors it may use all come from `team.yaml`. No provider or model is named in the code.
+
+For AIs: docs/ai-readme.md
 
 **Connectors** (GitHub, a plain git remote, others) are bound by configuration, each with its own directive — what the lead and the workers may do with it, and how. A team without connectors simply leaves its results as files.
 
@@ -75,6 +77,7 @@ Results can stay as files in the team's folder. When work belongs somewhere else
 | `queue` agent | Tasks as data: add, list, take, mark done — the lead's tool. |
 | `team_puller.tools` | Puller: `pull` reads `team-ready` issues from the github connector (only when the latest label event is by the maintainer and the `## SPEC` comment is by the maintainer or the app) and writes `queue/<repo>-<n>.md` plus a pending `.state`; `status` answers. It never overwrites a state file. |
 | connectors | `git` (`team_git.tools`: worktrees, commits, pushes to any remote; never the default branch, never a force), `github` (optional, `team_github.tools`: a GitHub App you register yourself — push via the git connector, draft PRs, issues, comments, labels, PR status; a repo allowlist; tokens minted per call): bound in `team.yaml`, each with its directive. |
+| `team_board.tools` | Board: the shared picture of the work. Caches every open issue of the configured repos with its queue state (pending / in_work / done / failed), knows the agents, keeps its own state in the store; verbs `pull`, `board`, `task`, `report`, `agent`, `ask`, `audit`. It never assigns. |
 | `team.yaml` | The lead, the worker templates (any backend, any model), the connectors and their directives, the task source. |
 | task templates | How to write a task that a worker can carry out alone. |
 

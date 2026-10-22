@@ -21,6 +21,10 @@ fn main() -> ExitCode {
                 ExitCode::from(2)
             }
         };
+    // `ai-readme`: print the README for AIs and stop. No flags, no team.
+    if all.first().map(String::as_str) == Some("ai-readme") {
+        print!("{}", fantastic_team::AI_README);
+        return ExitCode::SUCCESS;
     }
     // `--resend-instructions`: send the first agent its instructions again, even
     // when it already exists. Taken out before the other flags are parsed.
@@ -96,6 +100,35 @@ fn finish<E: std::fmt::Display>(result: Result<(), E>) -> ExitCode {
         Err(e) => {
             eprintln!("fantastic_team: {e}");
             ExitCode::from(1)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    #[test]
+    fn ai_readme_subcommand_prints_the_doc_file() {
+        // `ai-readme` prints `AI_README`, which is `docs/ai-readme.md` built in.
+        let file = std::fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/ai-readme.md"),
+        )
+        .unwrap();
+        assert_eq!(fantastic_team::AI_README, file);
+    }
+
+    #[test]
+    fn ai_readme_names_every_subcommand_and_flag() {
+        for word in [
+            "ai-readme",
+            "readme",
+            "--port",
+            "--tui",
+            "--dir",
+            "--instructions",
+        ] {
+            assert!(fantastic_team::AI_README.contains(word), "missing {word}");
         }
     }
 }

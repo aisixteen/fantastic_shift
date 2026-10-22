@@ -6,6 +6,7 @@
 #![deny(missing_docs)]
 
 pub mod config;
+pub mod instructions;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

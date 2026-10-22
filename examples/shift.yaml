@@ -1,0 +1,63 @@
+# shift.yaml — what a shift may use. HOW MANY agents run is not here: it is said in
+# the first agent's instructions (--instructions, or --workers / --shifters / --per-shifter).
+templates:
+  strong:
+    handler_module: anthropic_backend.tools
+    model: claude-opus-5-5
+    endpoint: https://api.anthropic.com/v1/messages
+    credentials:
+      store: credentials
+      ref: anthropic/api.anthropic.com
+    price_input_per_mtok: 4.0
+    price_output_per_mtok: 20.0
+    can_call: [kernel, kernel_state, exec, files, queue]
+    extra:
+      caching: provider_cache
+      context_window: 1000000
+      max_tokens: 32000
+  small:
+    handler_module: anthropic_backend.tools
+    model: claude-haiku-5-5
+    endpoint: https://api.anthropic.com/v1/messages
+    credentials:
+      store: credentials
+      ref: anthropic/api.anthropic.com
+    price_input_per_mtok: 0.1
+    price_output_per_mtok: 0.5
+    can_call: [exec, files, queue]
+    extra:
+      caching: provider_cache
+      context_strategy: compact
+      context_window: 1000000
+      max_tokens: 32000
+  local:
+    handler_module: vllm_backend.tools
+    model: my-local-model
+    endpoint: http://127.0.0.1:8000/v1
+    can_call: [exec, files, queue]
+    extra:
+      context_window: 128000
+      max_tokens: 8000
+first_agent:
+  id: shifter
+  template: strong
+  directive_file: directives/shifter.md
+connectors:
+  git:
+    kind: shift_git.tools
+    record:
+      repo_dir: /path/to/clone
+      workspace_root: /path/to/worktrees
+      remote: origin
+      default_branch: main
+    directive: Workers may make a worktree, commit, and push a work branch. Never the default branch, never a force.
+queue:
+  id: queue
+credentials:
+  id: credentials
+  backend: env
+  refs:
+    anthropic/api.anthropic.com:
+      host: api.anthropic.com
+      env:
+        api_key: ANTHROPIC_API_KEY

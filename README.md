@@ -95,3 +95,21 @@ fantastic is a git dependency followed by branch, pinned in `Cargo.lock`. `scrip
 Being built — by fantastic's own workers, from exact tasks. Progress: the [project board](https://github.com/orgs/aisixteen/projects/2) and the [issues](https://github.com/aisixteen/fantastic_team/issues).
 
 License: AGPL-3.0-or-later, like fantastic.
+
+## Run it on another machine
+
+The shift can run on a box with a GPU while you start and watch it from a laptop over SSH. It runs detached, like a tmux session: closing the laptop, the tunnel or a terminal never stops it. Until these become `fantastic_shift remote …` subcommands, they are scripts:
+
+```
+scripts/remote-add.sh gpu box.example.com:/srv/shift --port 8093 --keys "ANTHROPIC_API_KEY"   # once
+scripts/remote-start.sh gpu      # started gpu · pid 157007 · log /srv/shift/logs/kernel.log
+scripts/remote-ls.sh             # NAME HOST PORT ATTACHED STATE
+scripts/remote-attach.sh gpu     # attached to gpu at http://127.0.0.1:8093 — Ctrl-C detaches; gpu keeps running
+scripts/remote-logs.sh gpu -f
+scripts/remote-stop.sh gpu       # asks first; drains (SIGTERM); --now kills
+```
+
+- **Keys only at start.** The laptop config (`~/.config/fantastic-team/remotes/<name>`) names variables, never values. `remote-start.sh` reads their values from the laptop's environment and pipes them over SSH stdin into the box's memory: never in an argv, a file or shell history. `attach`, `ls`, `logs` and `stop` need no keys.
+- **127.0.0.1 only.** The shift binds the box's loopback; `remote-attach.sh` reaches it through an SSH tunnel with keep-alives and re-opens the tunnel when it drops. The tunnel is the security: no public port.
+- **After the box reboots** the shift is down (its keys were only in memory). `remote-ls.sh` says `down — box restarted, run remote start`.
+- Every script takes `--dry-run`, which prints the commands it would run and no secret. Tests: `sh tests/remote_scripts.sh`.

@@ -13,7 +13,12 @@ use serde_json::{json, Value};
 /// from fantastic-host; this repo's own bundles (queue, connectors) are added
 /// here as they land.
 pub fn registry() -> BundleRegistry {
-    fantastic_host::default_bundles()
+    let mut reg = fantastic_host::default_bundles();
+    reg.register(
+        shift_git_connector::HANDLER_MODULE,
+        shift_git_connector::GitConnectorBundle,
+    );
+    reg
 }
 
 /// Usage line, printed on `--help` and on bad arguments.
@@ -158,6 +163,12 @@ mod tests {
         let names: Vec<&str> = reg.catalog().map(|(n, _)| n).collect();
         assert!(names.contains(&"file_bridge.tools"));
         assert!(names.contains(&"kernel_state.tools"));
+    }
+
+    #[test]
+    fn the_registry_has_the_git_connector() {
+        let names: Vec<&str> = registry().catalog().map(|(n, _)| n).collect();
+        assert!(names.contains(&"shift_git.tools"));
     }
 
     #[test]

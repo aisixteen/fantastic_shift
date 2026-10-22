@@ -3,7 +3,7 @@
 # then build and test. Never commits by itself.
 set -e
 cd "$(dirname "$0")/.."
-cargo update -p fantastic-kernel -p fantastic-host -p fantastic-bundle
+cargo update -p fantastic-kernel -p fantastic-host -p fantastic-bundle -p fantastic-ai-core -p fantastic-credential-store -p fantastic-ram-store
 cargo build
 cargo test
 echo "fantastic now at:"

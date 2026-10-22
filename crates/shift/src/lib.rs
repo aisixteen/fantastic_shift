@@ -22,6 +22,10 @@ pub fn registry() -> BundleRegistry {
         shift_git_connector::HANDLER_MODULE,
         shift_git_connector::GitConnectorBundle,
     );
+    reg.register(
+        shift_github_connector::HANDLER_MODULE,
+        shift_github_connector::GithubConnectorBundle,
+    );
     reg
 }
 
@@ -191,6 +195,13 @@ mod tests {
         let reg = registry();
         let names: Vec<&str> = reg.catalog().map(|(n, _)| n).collect();
         assert!(names.contains(&"shift_git.tools"));
+    }
+
+    #[test]
+    fn the_registry_has_the_github_connector() {
+        let reg = registry();
+        let names: Vec<&str> = reg.catalog().map(|(n, _)| n).collect();
+        assert!(names.contains(&"shift_github.tools"));
     }
 
     #[test]

@@ -8,6 +8,7 @@
 pub mod board;
 pub mod cadencer;
 pub mod config;
+pub mod dispatcher;
 pub mod instructions;
 pub mod puller;
 pub mod tree;
@@ -37,6 +38,10 @@ pub fn register_team(reg: &mut BundleRegistry) {
     );
     reg.register(puller::HANDLER_MODULE, puller::PullerBundle);
     reg.register(board::HANDLER_MODULE, board::BoardBundle);
+    reg.register(
+        dispatcher::HANDLER_MODULE,
+        dispatcher::DispatcherBundle,
+    );
     reg.register(
         cadencer::HANDLER_MODULE,
         cadencer::CadencerBundle::default(),

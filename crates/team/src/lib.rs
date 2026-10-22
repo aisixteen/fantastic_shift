@@ -13,6 +13,7 @@ pub mod instructions;
 pub mod puller;
 pub mod setup_github;
 pub mod tree;
+pub mod worker_view;
 pub mod webhook;
 
 use std::path::{Path, PathBuf};
@@ -41,13 +42,14 @@ pub fn register_team(reg: &mut BundleRegistry) {
     reg.register(puller::HANDLER_MODULE, puller::PullerBundle);
     reg.register(webhook::HANDLER_MODULE, webhook::WebhookBundle);
     reg.register(board::HANDLER_MODULE, board::BoardBundle);
-    reg.register(
-        dispatcher::HANDLER_MODULE,
-        dispatcher::DispatcherBundle,
-    );
+    reg.register(dispatcher::HANDLER_MODULE, dispatcher::DispatcherBundle);
     reg.register(
         cadencer::HANDLER_MODULE,
         cadencer::CadencerBundle::default(),
+    );
+    reg.register(
+        worker_view::HANDLER_MODULE,
+        worker_view::WorkerViewBundle::default(),
     );
 }
 

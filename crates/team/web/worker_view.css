@@ -1,0 +1,29 @@
+/* Worker view: a vertical canvas (mobile layout). Only the fit rules here;
+   the colours and type come from the mobile theme. */
+.wv-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+.wv-top {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+.wv-cell {
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+.wv-chat {
+  flex: 0 0 auto;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}

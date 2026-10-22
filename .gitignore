@@ -1,0 +1,4 @@
+/target
+.fantastic/
+*.pem
+.env

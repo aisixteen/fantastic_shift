@@ -70,7 +70,7 @@ Results can stay as files in the team's folder. When work belongs somewhere else
 
 | Part | What it is |
 |---|---|
-| `fantastic_team` | The program: a headless fantastic host plus the agents below. `--canvas` adds fantastic's browser canvas to watch the team. |
+| `fantastic_team` | The program: fantastic's terminal-shell library (`fantastic-tui`) plus the agents below. Fully headless by default; `--port N` serves the web UI on 127.0.0.1:N; `--tui` opens the terminal UI. |
 | the lead | An AI agent configured in `team.yaml`: its model, its directive, the worker templates it may spawn. |
 | `queue` agent | Tasks as data: add, list, take, mark done — the lead's tool. |
 | connectors | `git` (`team_git.tools`: worktrees, commits, pushes to any remote; never the default branch, never a force), `github` (optional, `team_github.tools`: a GitHub App you register yourself — push via the git connector, draft PRs, issues, comments, labels, PR status; a repo allowlist; tokens minted per call): bound in `team.yaml`, each with its directive. |
@@ -81,14 +81,16 @@ Results can stay as files in the team's folder. When work belongs somewhere else
 
 ```
 cargo build --release
-./target/release/fantastic_team --dir ./my-team
+./target/release/fantastic_team --dir ./my-team            # headless: no port, no terminal UI
+./target/release/fantastic_team --dir ./my-team --port 8123  # also serves the web UI on 127.0.0.1:8123
+./target/release/fantastic_team --dir ./my-team --tui        # the terminal UI (needs a terminal)
 ```
 
-Ctrl-C to stop. fantastic is a pinned git dependency. On macOS the build needs `MACOSX_DEPLOYMENT_TARGET=14.0` (fantastic's Swift bridge targets macOS 14); `.cargo/config.toml.example` sets it under `[env]`.
+`--port` and `--tui` are the only surfaces and are not combined; `mcp`, `send` and `readme` as the first word run fantastic's own commands in the current directory. Ctrl-C to stop. fantastic is a pinned git dependency. On macOS the build needs `MACOSX_DEPLOYMENT_TARGET=14.0` (fantastic's Swift bridge targets macOS 14); `.cargo/config.toml.example` sets it under `[env]`.
 
 ## Updating fantastic
 
-fantastic is a git dependency followed by branch, pinned in `Cargo.lock`. `scripts/update-fantastic.sh` moves to the newest commit and runs the build and tests. `.cargo/config.toml.example` builds against a local checkout.
+fantastic is a git dependency on branch `main` (`fantastic-tui`, the terminal shell as a library, and the kernel and bundle crates, all one version), pinned in `Cargo.lock`. `scripts/update-fantastic.sh` moves to the newest commit and runs the build and tests. `.cargo/config.toml.example` builds against a local checkout.
 
 ## Status
 

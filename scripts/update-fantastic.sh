@@ -1,9 +1,9 @@
 #!/bin/sh
-# Move fantastic (all three crates) to the newest commit of its followed branch,
-# then build and test. Never commits by itself.
+# Move fantastic (every fantastic crate, one commit of branch main) to its
+# newest commit, then build and test. Never commits by itself.
 set -e
 cd "$(dirname "$0")/.."
-cargo update -p fantastic-kernel -p fantastic-host -p fantastic-bundle
+cargo update -p fantastic-tui -p fantastic-kernel -p fantastic-bundle
 cargo build
 cargo test
 echo "fantastic now at:"

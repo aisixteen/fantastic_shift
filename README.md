@@ -20,6 +20,8 @@ It is not only for code. A task is any piece of work that can be described exact
 
 A team is run by **the lead**: an AI agent that works from a directive. It spawns worker agents when there is work, gives each a task, checks on them, pushes a worker that stops early, stops one that goes off the rails, and deletes workers when the queue is empty. The lead is configured, not programmed: its model, its directive, the worker templates it may spawn (model, backend, credentials ref, limits) and the connectors it may use all come from `team.yaml`. No provider or model is named in the code.
 
+For AIs: docs/ai-readme.md
+
 **Connectors** (GitHub, a plain git remote, others) are bound by configuration, each with its own directive — what the lead and the workers may do with it, and how. A team without connectors simply leaves its results as files.
 
 The one thing the code enforces itself is the sandbox: workers run commands with no forge credentials and cannot reach a forge from a shell. Only connectors can.

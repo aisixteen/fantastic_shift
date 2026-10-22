@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/shift"]
+members = ["crates/shift", "crates/secrets_guard"]
 
 [workspace.package]
 version = "0.1.0"

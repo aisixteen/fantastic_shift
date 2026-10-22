@@ -8,3 +8,4 @@ MACOSX_DEPLOYMENT_TARGET = "14.0"
 fantastic-kernel = { path = "../fantastic/src/lib/rust/crates/fantastic-kernel" }
 fantastic-host = { path = "../fantastic/src/lib/rust/crates/fantastic-host" }
 fantastic-bundle = { path = "../fantastic/src/lib/rust/crates/fantastic-bundle" }
+fantastic-exec-bridge = { path = "../fantastic/src/lib/rust/crates/bundles/fantastic-exec-bridge" }

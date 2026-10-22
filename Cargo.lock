@@ -657,6 +657,7 @@ name = "fantastic-shift"
 version = "0.1.0"
 dependencies = [
  "fantastic-bundle",
+ "fantastic-exec-bridge",
  "fantastic-host",
  "fantastic-kernel",
  "serde_json",

@@ -8,8 +8,9 @@
 //! reply, an error or a log line. Every string returned passes through `redact`.
 #![deny(missing_docs)]
 
-mod git;
-mod paths;
+pub mod git;
+pub use git::check_push;
+pub mod paths;
 
 #[cfg(test)]
 mod tests;
@@ -64,15 +65,24 @@ pub(crate) fn record_schema() -> &'static Value {
 }
 
 /// The config of the agent, read from its meta at every call.
-pub(crate) struct Cfg {
+pub struct Cfg {
+    /// The local clone every worktree is made from.
     pub repo_dir: PathBuf,
+    /// The directory every worktree path must be inside.
     pub workspace_root: PathBuf,
+    /// A remote name in `repo_dir`, or a URL.
     pub remote: String,
+    /// The remote's default branch (push refuses it).
     pub default_branch: String,
+    /// The HTTPS user name sent with the token.
     pub username: String,
+    /// Commit author name and email, when both are set.
     pub author: Option<(String, String)>,
+    /// GIT_SSH_COMMAND for SSH remotes.
     pub ssh_command: String,
+    /// Seconds one git command may run.
     pub timeout_s: u64,
+    /// Whether the record names a credential store ref.
     pub has_credentials: bool,
 }
 
@@ -105,6 +115,16 @@ impl GitConnectorBundle {
                 .unwrap_or(false),
         }
     }
+}
+
+/// The config of the git agent `id`, read from its record. An unknown id is an error.
+pub fn cfg_of(kernel: &Arc<Kernel>, id: &AgentId) -> Result<Cfg, Value> {
+    let meta = kernel
+        .agents
+        .get(id)
+        .map(|e| e.meta.read().expect("meta").clone())
+        .ok_or_else(|| json!({"error": format!("shift_git: no agent `{id}`")}))?;
+    Ok(GitConnectorBundle::cfg(&Value::Object(meta)))
 }
 
 /// A refusal reply: `error` text plus the arg that caused it.

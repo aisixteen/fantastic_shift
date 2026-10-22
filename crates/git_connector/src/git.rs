@@ -17,8 +17,10 @@ use crate::{bad, missing_arg, Cfg, NAME, URL_CREDS};
 
 /// A token read from the credential store. It has no `Debug`, `Display` or
 /// `Serialize`, so it cannot be printed by accident.
-pub(crate) struct Auth {
+pub struct Auth {
+    /// The HTTPS user name sent with the token.
     pub username: String,
+    /// The token itself; it reaches git only through the child's environment.
     pub token: String,
 }
 
@@ -35,14 +37,15 @@ fn s(p: &Path) -> String {
 }
 
 /// Replace every occurrence of the token with the shown marker.
-pub(crate) fn redact(text: &str, auth: Option<&Auth>) -> String {
+pub fn redact(text: &str, auth: Option<&Auth>) -> String {
     match auth {
         Some(a) if !a.token.is_empty() => text.replace(a.token.as_str(), SHOWN),
         _ => text.to_string(),
     }
 }
 
-fn scrub(v: &mut Value, auth: Option<&Auth>) {
+/// Redact the token in every string of a JSON value, in place.
+pub fn scrub(v: &mut Value, auth: Option<&Auth>) {
     match v {
         Value::String(text) => {
             let clean = redact(text, auth);
@@ -131,7 +134,7 @@ fn host_of(authority: &str) -> String {
 }
 
 /// Run one git command. Stdout is returned redacted; stderr is redacted on failure.
-pub(crate) async fn run(
+pub async fn run(
     cfg: &Cfg,
     dir: &Path,
     pre: &[String],
@@ -224,7 +227,7 @@ pub(crate) async fn toplevel(dir: &Path) -> Option<PathBuf> {
 }
 
 /// The URL of the record's remote: itself when it is a URL, else the name's URL.
-pub(crate) async fn remote_url(cfg: &Cfg) -> Result<String, Value> {
+pub async fn remote_url(cfg: &Cfg) -> Result<String, Value> {
     if looks_like_url(&cfg.remote) {
         return Ok(cfg.remote.clone());
     }
@@ -427,13 +430,10 @@ pub(crate) async fn commit(cfg: &Cfg, p: &Value) -> Result<Value, Value> {
     Ok(json!({"path": target, "commit": sha.trim(), "committed": true}))
 }
 
-async fn push_inner(
-    cfg: &Cfg,
-    p: &Value,
-    id: &AgentId,
-    kernel: &Arc<Kernel>,
-    slot: &mut Option<Auth>,
-) -> Result<Value, Value> {
+/// The push checks, in order: force, protected branch, dash, branch name,
+/// the path inside the root, and that it is a worktree of `repo_dir`.
+/// Returns the branch and the canonical worktree path.
+pub async fn check_push(cfg: &Cfg, p: &Value) -> Result<(String, PathBuf), Value> {
     const V: &str = "push";
     if p.get("force").map(truthy).unwrap_or(false) {
         return Err(bad(FORCE.to_string(), "force", json!(true)));
@@ -453,6 +453,19 @@ async fn push_inner(
     check_branch(cfg, V, branch).await?;
     let raw = arg(p, V, "path")?;
     let path = gate(cfg, V, raw).await?;
+    Ok((branch.to_string(), path))
+}
+
+async fn push_inner(
+    cfg: &Cfg,
+    p: &Value,
+    id: &AgentId,
+    kernel: &Arc<Kernel>,
+    slot: &mut Option<Auth>,
+) -> Result<Value, Value> {
+    const V: &str = "push";
+    let (branch, path) = check_push(cfg, p).await?;
+    let branch = branch.as_str();
     let url = remote_url(cfg).await?;
     let auth = auth_for(cfg, &url, id, kernel).await?;
     *slot = auth;

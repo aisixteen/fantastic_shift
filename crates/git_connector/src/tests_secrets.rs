@@ -76,7 +76,6 @@ async fn the_https_token_never_leaves_the_agent() {
             .await,
     );
 
-
     // 1. No reply carries the token.
     for r in &replies {
         assert!(!serde_json::to_string(r).unwrap().contains(TOKEN), "{r}");

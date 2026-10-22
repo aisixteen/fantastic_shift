@@ -35,7 +35,8 @@ pub(crate) fn not_worktree(verb: &str, path: &str, repo_dir: &Path) -> Value {
 
 /// Resolve `raw` against the root and clamp it. Returns the canonical path,
 /// which must be strictly inside the canonical root.
-pub(crate) fn inside_root(root: &Path, raw: &str, verb: &str) -> Result<PathBuf, Value> {
+/// Resolve `raw` under `root` and check it stays strictly inside it.
+pub fn inside_root(root: &Path, raw: &str, verb: &str) -> Result<PathBuf, Value> {
     if Path::new(raw)
         .components()
         .any(|c| matches!(c, Component::ParentDir))
@@ -74,7 +75,8 @@ pub(crate) fn inside_root(root: &Path, raw: &str, verb: &str) -> Result<PathBuf,
 
 /// True when `path` is a worktree of `cfg.repo_dir`: same git common dir, and
 /// its own top level is `path`. Any git failure is false.
-pub(crate) async fn is_worktree_of(cfg: &Cfg, path: &Path) -> bool {
+/// True when `path` is a worktree of `cfg.repo_dir`.
+pub async fn is_worktree_of(cfg: &Cfg, path: &Path) -> bool {
     let common_here = git::common_dir(path).await;
     let common_repo = git::common_dir(&cfg.repo_dir).await;
     let top = git::toplevel(path).await;

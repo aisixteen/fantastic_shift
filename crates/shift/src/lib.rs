@@ -2,6 +2,8 @@
 //! directory and runs until stopped. `main.rs` is a thin wrapper around `run`.
 #![deny(missing_docs)]
 
+pub mod config;
+
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 

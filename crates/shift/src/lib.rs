@@ -2,12 +2,16 @@
 //! directory and runs until stopped. `main.rs` is a thin wrapper around `run`.
 #![deny(missing_docs)]
 
+pub mod config;
+
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use fantastic_kernel::bootstrap::{self, BootstrapOptions, DEFAULT_ROOT_ID};
 use fantastic_kernel::{lock, BundleRegistry, Item, Kernel, Status};
 use serde_json::json;
+
+pub mod worker_exec;
 
 /// The bundle registry the shift boots with. fantastic's default set comes
 /// from fantastic-host; this repo's own bundles (queue, connectors) are added

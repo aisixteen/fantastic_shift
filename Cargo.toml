@@ -11,12 +11,14 @@ repository = "https://github.com/aisixteen/fantastic_shift"
 [workspace.dependencies]
 # fantastic, followed by BRANCH; Cargo.lock pins the exact commit. Update all fantastic crates at once with
 # scripts/update-fantastic.sh (or `cargo update -p fantastic-kernel`). The branch is the fantastic-host PR
-# (aisixteen/fantastic#250) until it merges; then it becomes "main" — one word, in all three lines.
+# (aisixteen/fantastic#250) until it merges; then it becomes "main" — one word, in all four lines.
 fantastic-kernel = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
 fantastic-host = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
 fantastic-bundle = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
+fantastic-exec-bridge = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
 tokio = { version = "1", features = ["full"] }
 serde_json = "1"
+serde = { version = "1", features = ["derive"] }
 fantastic-ai-core = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
 fantastic-credential-store = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
 fantastic-ram-store = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }

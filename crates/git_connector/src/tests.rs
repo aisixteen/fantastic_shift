@@ -13,8 +13,6 @@ use tempfile::TempDir;
 
 use crate::GitConnectorBundle;
 
-pub(crate) const STORE: &str = "creds";
-
 static ISOLATE: Once = Once::new();
 
 /// Keep the user's git config (helpers, hooks, signing, insteadOf) out of tests.
@@ -191,6 +189,39 @@ async fn status_and_diff_stat_show_a_change() {
     let d = f.call(json!({"type": "diff_stat", "path": "w1"})).await;
     assert_eq!(d["against"], "HEAD");
     assert!(d["stat"].as_str().unwrap().contains("README.md"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn commit_ignores_identity_variables_from_the_environment() {
+    // A station exports these; the record's identity must still win.
+    for (k, v) in [
+        ("GIT_AUTHOR_NAME", "Station Person"),
+        ("GIT_AUTHOR_EMAIL", "station@example.org"),
+        ("GIT_COMMITTER_NAME", "Station Person"),
+        ("GIT_COMMITTER_EMAIL", "station@example.org"),
+    ] {
+        unsafe { std::env::set_var(k, v) };
+    }
+    let f = fx(json!({}), None).await;
+    f.call(
+        json!({"type": "worktree_add", "path": "w1", "branch": "work/env", "base": "origin/main"}),
+    )
+    .await;
+    let w1 = f.ws.join("w1");
+    std::fs::write(w1.join("env.txt"), "x\n").unwrap();
+    let c = f
+        .call(json!({"type": "commit", "path": "w1", "message": "env identity"}))
+        .await;
+    assert!(c["commit"].as_str().is_some(), "{c}");
+    let body = sh_git(&w1, &["log", "-1", "--format=%B"]);
+    assert!(
+        body.contains("Signed-off-by: Shift Bot <bot@shift.test>"),
+        "{body}"
+    );
+    assert_eq!(
+        sh_git(&w1, &["log", "-1", "--format=%an <%ae> / %cn <%ce>"]),
+        "Shift Bot <bot@shift.test> / Shift Bot <bot@shift.test>"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -81,7 +81,7 @@ async fn the_key_the_jwt_and_the_token_never_leave_the_agent() {
         }
     }
     assert!(!secrets.is_empty());
-    assert!(requests_to(&f.gh, "/app").await.len() >= 1);
+    assert!(!requests_to(&f.gh, "/app").await.is_empty());
 
     for (i, s) in secrets.iter().enumerate() {
         for r in &replies {

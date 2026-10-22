@@ -171,13 +171,15 @@ mod tests {
 
     #[test]
     fn the_registry_has_the_git_connector() {
-        let names: Vec<&str> = registry().catalog().map(|(n, _)| n).collect();
+        let reg = registry();
+        let names: Vec<&str> = reg.catalog().map(|(n, _)| n).collect();
         assert!(names.contains(&"shift_git.tools"));
     }
 
     #[test]
     fn the_registry_has_the_github_connector() {
-        let names: Vec<&str> = registry().catalog().map(|(n, _)| n).collect();
+        let reg = registry();
+        let names: Vec<&str> = reg.catalog().map(|(n, _)| n).collect();
         assert!(names.contains(&"shift_github.tools"));
     }
 

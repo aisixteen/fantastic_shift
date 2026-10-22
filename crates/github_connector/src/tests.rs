@@ -4,7 +4,7 @@ use std::sync::{Arc, Once, OnceLock};
 
 use base64::Engine;
 use fantastic_kernel::bootstrap::{self, BootstrapOptions};
-use fantastic_kernel::bundle::Bundle as _;
+
 use fantastic_kernel::test_support::register_root_loader;
 use fantastic_kernel::{AgentId, BundleRegistry, Item, Kernel};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
@@ -86,6 +86,7 @@ pub(crate) async fn mock_app(server: &MockServer) {
         .await;
 }
 
+#[allow(dead_code)] // `tmp` keeps the store directory alive for the test
 pub(crate) struct Fx {
     pub k: Arc<Kernel>,
     pub tmp: TempDir,
@@ -140,6 +141,13 @@ pub(crate) async fn fx(extra: Value) -> Fx {
         .insert("guid".to_string(), json!("g1"));
 
     fantastic_credential_store::test_support::ensure_store(&k, tmp.path(), STORE).await;
+    k.send(vec![Item::new(
+        "kernel",
+        json!({"type": "update_agent", "id": STORE,
+               "refs": {REF: {"host": gh.uri()}},
+               "callable_by": {"$self": "*", "github": "*"}}),
+    )])
+    .await;
     let set = k
         .send(vec![Item::new(
             STORE,
@@ -151,12 +159,6 @@ pub(crate) async fn fx(extra: Value) -> Fx {
         .await
         .remove(0);
     assert_eq!(set.result["stored"], json!(true), "set: {}", set.result);
-    k.send(vec![Item::new(
-        "kernel",
-        json!({"type": "update_agent", "id": STORE,
-               "refs": {REF: {"host": gh.uri()}}}),
-    )])
-    .await;
 
     let mut payload = json!({
         "type": "create_agent",

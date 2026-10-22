@@ -30,6 +30,21 @@ templates:
       context_strategy: compact
       context_window: 1000000
       max_tokens: 32000
+  issue_keeper:
+    handler_module: anthropic_backend.tools
+    model: claude-haiku-5-5
+    endpoint: https://api.anthropic.com/v1/messages
+    credentials:
+      store: credentials
+      ref: anthropic/api.anthropic.com
+    price_input_per_mtok: 0.1
+    price_output_per_mtok: 0.5
+    can_call: [queue]
+    extra:
+      caching: provider_cache
+      context_strategy: compact
+      context_window: 1000000
+      max_tokens: 8000
   local:
     handler_module: vllm_backend.tools
     model: my-local-model

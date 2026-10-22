@@ -5,6 +5,7 @@
 //! is a thin wrapper around `fantastic_tui::main_with`.
 #![deny(missing_docs)]
 
+pub mod board;
 pub mod cadencer;
 pub mod config;
 pub mod instructions;
@@ -35,6 +36,7 @@ pub fn register_team(reg: &mut BundleRegistry) {
         team_github_connector::GithubConnectorBundle,
     );
     reg.register(puller::HANDLER_MODULE, puller::PullerBundle);
+    reg.register(board::HANDLER_MODULE, board::BoardBundle);
     reg.register(
         cadencer::HANDLER_MODULE,
         cadencer::CadencerBundle::default(),

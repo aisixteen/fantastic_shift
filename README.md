@@ -1,6 +1,6 @@
 # AISixteen Fantastic Team
 
-Program: `fantastic_team`.
+Program: `fantastic_team`. Install: docs/install.md
 
 **Unattended team work on [fantastic](https://github.com/aisixteen/fantastic).** You queue tasks; a team of AI workers takes them one by one, does the work on its own, and hands back finished results for you to review. You come back to done work, not to a chat.
 

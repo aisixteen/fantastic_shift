@@ -982,12 +982,14 @@ dependencies = [
  "fantastic-ram-store",
  "fantastic-team-secrets-guard",
  "fantastic-tui",
+ "reqwest",
  "serde",
  "serde_json",
  "team-git-connector",
  "team-github-connector",
  "tempfile",
  "tokio",
+ "wiremock",
 ]
 
 [[package]]

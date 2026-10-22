@@ -9,6 +9,7 @@ pub mod cadencer;
 pub mod config;
 pub mod instructions;
 pub mod puller;
+pub mod setup_github;
 pub mod tree;
 
 use std::path::{Path, PathBuf};

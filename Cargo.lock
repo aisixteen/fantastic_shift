@@ -659,6 +659,21 @@ dependencies = [
  "fantastic-bundle",
  "fantastic-host",
  "fantastic-kernel",
+ "fantastic-shift-queue",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "fantastic-shift-queue"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "fantastic-bundle",
+ "fantastic-host",
+ "fantastic-kernel",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",

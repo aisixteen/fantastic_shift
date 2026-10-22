@@ -13,7 +13,12 @@ use serde_json::{json, Value};
 /// from fantastic-host; this repo's own bundles (queue, connectors) are added
 /// here as they land.
 pub fn registry() -> BundleRegistry {
-    fantastic_host::default_bundles()
+    let mut reg = fantastic_host::default_bundles();
+    reg.register(
+        fantastic_shift_queue::HANDLER_MODULE,
+        fantastic_shift_queue::QueueBundle::default(),
+    );
+    reg
 }
 
 /// Usage line, printed on `--help` and on bad arguments.
@@ -158,6 +163,13 @@ mod tests {
         let names: Vec<&str> = reg.catalog().map(|(n, _)| n).collect();
         assert!(names.contains(&"file_bridge.tools"));
         assert!(names.contains(&"kernel_state.tools"));
+    }
+
+    #[test]
+    fn the_registry_has_the_queue() {
+        let reg = registry();
+        let names: Vec<&str> = reg.catalog().map(|(n, _)| n).collect();
+        assert!(names.contains(&"shift_queue.tools"));
     }
 
     #[test]

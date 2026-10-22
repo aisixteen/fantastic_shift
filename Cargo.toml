@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/shift"]
+members = ["crates/shift", "crates/queue"]
 
 [workspace.package]
 version = "0.1.0"
@@ -17,3 +17,5 @@ fantastic-host = { git = "https://github.com/aisixteen/fantastic", branch = "fix
 fantastic-bundle = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
 tokio = { version = "1", features = ["full"] }
 serde_json = "1"
+async-trait = "0.1"
+serde = { version = "1", features = ["derive"] }

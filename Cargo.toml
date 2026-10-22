@@ -17,6 +17,7 @@ fantastic-host = { git = "https://github.com/aisixteen/fantastic", branch = "fix
 fantastic-bundle = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
 tokio = { version = "1", features = ["full"] }
 serde_json = "1"
+serde = { version = "1", features = ["derive"] }
 fantastic-ai-core = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
 fantastic-credential-store = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
 fantastic-ram-store = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }

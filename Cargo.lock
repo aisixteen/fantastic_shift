@@ -659,6 +659,7 @@ dependencies = [
  "fantastic-bundle",
  "fantastic-host",
  "fantastic-kernel",
+ "serde",
  "serde_json",
  "shift-git-connector",
  "tempfile",

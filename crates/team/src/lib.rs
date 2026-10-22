@@ -5,6 +5,7 @@
 //! is a thin wrapper around `fantastic_tui::main_with`.
 #![deny(missing_docs)]
 
+pub mod cadencer;
 pub mod config;
 
 use std::path::{Path, PathBuf};
@@ -29,6 +30,10 @@ pub fn register_team(reg: &mut BundleRegistry) {
     reg.register(
         team_github_connector::HANDLER_MODULE,
         team_github_connector::GithubConnectorBundle,
+    );
+    reg.register(
+        cadencer::HANDLER_MODULE,
+        cadencer::CadencerBundle::default(),
     );
 }
 

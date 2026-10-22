@@ -10,7 +10,7 @@ templates:
       ref: anthropic/api.anthropic.com
     price_input_per_mtok: 4.0
     price_output_per_mtok: 20.0
-    can_call: [kernel, kernel_state, exec, files, queue]
+    can_call: [kernel, kernel_state, worker_exec, worker_files, queue]
     extra:
       caching: provider_cache
       context_window: 1000000
@@ -24,7 +24,7 @@ templates:
       ref: anthropic/api.anthropic.com
     price_input_per_mtok: 0.1
     price_output_per_mtok: 0.5
-    can_call: [exec, files, queue]
+    can_call: [worker_exec, worker_files, queue]
     extra:
       caching: provider_cache
       context_strategy: compact
@@ -34,7 +34,7 @@ templates:
     handler_module: vllm_backend.tools
     model: my-local-model
     endpoint: http://127.0.0.1:8000/v1
-    can_call: [exec, files, queue]
+    can_call: [worker_exec, worker_files, queue]
     extra:
       context_window: 128000
       max_tokens: 8000

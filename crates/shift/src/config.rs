@@ -394,6 +394,19 @@ mod tests {
     }
 
     #[test]
+    fn no_example_template_grants_exec_or_files() {
+        let cfg = parse(include_str!("../../../examples/shift.yaml")).unwrap();
+        for (n, t) in &cfg.templates {
+            for c in &t.can_call {
+                assert!(
+                    c != "exec" && c != "files",
+                    "template `{n}` grants the unrestricted agent `{c}`"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn a_minimal_file_parses_with_defaults() {
         let cfg = parse(MIN).unwrap();
         assert_eq!(cfg.first_agent.id, "shifter");

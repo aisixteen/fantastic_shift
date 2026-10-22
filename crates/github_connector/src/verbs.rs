@@ -203,7 +203,10 @@ async fn pr_create(id: &AgentId, kernel: &Arc<Kernel>, cfg: &Cfg, p: &Value) -> 
         if branch == default {
             return Err(base_refusal(branch));
         }
-        let body_text = p.get("body").and_then(|v| v.as_str()).unwrap_or("");
+        let body_text = crate::footer::with_footer(
+            p.get("body").and_then(|v| v.as_str()).unwrap_or(""),
+            p.get("usage"),
+        );
         let payload = json!({
             "title": title,
             "head": branch,

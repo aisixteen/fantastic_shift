@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/shift", "crates/git_connector", "crates/github_connector"]
+members = ["crates/shift", "crates/secrets_guard", "crates/git_connector", "crates/github_connector"]
 
 [workspace.package]
 version = "0.1.0"

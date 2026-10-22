@@ -25,4 +25,5 @@ serde.workspace = true
 
 [dev-dependencies]
 tempfile = "3"
+fantastic-shift-secrets-guard = { path = "../secrets_guard" }
 fantastic-exec-bridge.workspace = true

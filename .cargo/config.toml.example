@@ -6,7 +6,6 @@ MACOSX_DEPLOYMENT_TARGET = "14.0"
 # local fantastic checkout instead of the git branch. Do not commit the copy.
 # [patch."https://github.com/aisixteen/fantastic"]
 # fantastic-kernel = { path = "../fantastic/src/lib/rust/crates/fantastic-kernel" }
-# fantastic-host = { path = "../fantastic/src/lib/rust/crates/fantastic-host" }
 # fantastic-bundle = { path = "../fantastic/src/lib/rust/crates/fantastic-bundle" }
 # fantastic-exec-bridge = { path = "../fantastic/src/lib/rust/crates/bundles/fantastic-exec-bridge" }
 # fantastic-ai-core = { path = "../fantastic/src/lib/rust/crates/bundles/fantastic-ai-core" }

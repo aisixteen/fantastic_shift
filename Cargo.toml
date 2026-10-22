@@ -9,19 +9,22 @@ license = "AGPL-3.0-or-later"
 repository = "https://github.com/aisixteen/fantastic_team"
 
 [workspace.dependencies]
-# fantastic, followed by BRANCH; Cargo.lock pins the exact commit. Update all fantastic crates at once with
-# scripts/update-fantastic.sh (or `cargo update -p fantastic-kernel`). The branch is the fantastic-host PR
-# (aisixteen/fantastic#250) until it merges; then it becomes "main" — one word, in all four lines.
-fantastic-kernel = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
-fantastic-host = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
-fantastic-bundle = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
-fantastic-exec-bridge = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
+# fantastic, followed by BRANCH `main`; Cargo.lock pins the exact commit. ONE fantastic version: every
+# fantastic crate below names the same git URL and branch, and fantastic-tui (the terminal shell as a
+# library, aisixteen/fantastic#267) pulls its own crates from that same repository, so Cargo resolves
+# them to one commit. Update them all at once with scripts/update-fantastic.sh.
+fantastic-tui = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
+fantastic-kernel = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
+fantastic-bundle = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
+fantastic-exec-bridge = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
 tokio = { version = "1", features = ["full"] }
 serde_json = "1"
 serde = { version = "1", features = ["derive"] }
-fantastic-ai-core = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
-fantastic-credential-store = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
-fantastic-ram-store = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
+fantastic-ai-core = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
+fantastic-core = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
+fantastic-file = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
+fantastic-credential-store = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
+fantastic-ram-store = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
 async-trait = "0.1"
 tempfile = "3"
 base64 = "0.22"

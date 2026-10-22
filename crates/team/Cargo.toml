@@ -14,9 +14,13 @@ path = "src/main.rs"
 path = "src/lib.rs"
 
 [dependencies]
+fantastic-tui.workspace = true
 fantastic-kernel.workspace = true
-fantastic-host.workspace = true
 fantastic-bundle.workspace = true
+fantastic-core.workspace = true
+fantastic-file.workspace = true
+fantastic-ram-store.workspace = true
+fantastic-exec-bridge.workspace = true
 team-git-connector = { path = "../git_connector" }
 team-github-connector = { path = "../github_connector" }
 tokio.workspace = true
@@ -26,4 +30,3 @@ serde.workspace = true
 [dev-dependencies]
 tempfile = "3"
 fantastic-team-secrets-guard = { path = "../secrets_guard" }
-fantastic-exec-bridge.workspace = true

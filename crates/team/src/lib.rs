@@ -1,5 +1,8 @@
-//! fantastic_team as a library: a headless fantastic host that boots in a
-//! directory and runs until stopped. `main.rs` is a thin wrapper around `run`.
+//! fantastic_team as a library: this repo's bundles ([`register_team`]) for
+//! fantastic's terminal-shell library (`fantastic_tui::main_with`), the command
+//! line that maps the team's surface flags onto that shell's modes
+//! ([`parse_args`]), and an in-process kernel ([`start`]) for tests. `main.rs`
+//! is a thin wrapper around `fantastic_tui::main_with`.
 #![deny(missing_docs)]
 
 pub mod config;
@@ -13,11 +16,12 @@ use serde_json::json;
 
 pub mod worker_exec;
 
-/// The bundle registry the team boots with. fantastic's default set comes
-/// from fantastic-host; this repo's own bundles (queue, connectors) are added
-/// here as they land.
-pub fn registry() -> BundleRegistry {
-    let mut reg = fantastic_host::default_bundles();
+/// This repo's bundles, added to the registry of fantastic's shell AFTER its
+/// stock set (an `fantastic_tui::Extra`): the git and github connectors. The
+/// worker exec restriction ([`worker_exec`]) and the config and directives
+/// ([`config`], [`directives`]) are records and files, not bundles, so nothing
+/// else registers.
+pub fn register_team(reg: &mut BundleRegistry) {
     reg.register(
         team_git_connector::HANDLER_MODULE,
         team_git_connector::GitConnectorBundle,
@@ -26,21 +30,88 @@ pub fn registry() -> BundleRegistry {
         team_github_connector::HANDLER_MODULE,
         team_github_connector::GithubConnectorBundle,
     );
+}
+
+/// A kernel registry for [`start`] (tests, embedding): the bundles the base
+/// tree needs (the root's state, the file store, the RAM memory store, the
+/// exec bridge) plus [`register_team`]. fantastic's shell builds its own, fuller
+/// set when the binary runs; that one is private to it.
+pub fn registry() -> BundleRegistry {
+    let mut reg = BundleRegistry::new();
+    reg.register(
+        fantastic_core::HANDLER_MODULE,
+        fantastic_core::KernelStateBundle::default(),
+    );
+    reg.register("file_bridge.tools", fantastic_file::FileBundle::default());
+    reg.register(
+        fantastic_ram_store::HANDLER_MODULE,
+        fantastic_ram_store::RamStoreBundle::default(),
+    );
+    reg.register(
+        fantastic_exec_bridge::HANDLER_MODULE,
+        fantastic_exec_bridge::ExecBridgeBundle,
+    );
+    register_team(&mut reg);
     reg
 }
 
-/// Usage line, printed on `--help` and on bad arguments.
-pub const USAGE: &str = "usage: fantastic_team [--dir PATH]";
+/// Usage text, printed on `--help` and on bad arguments.
+pub const USAGE: &str = "usage: fantastic_team [--dir PATH] [--port N | --tui]\n  no surface flag: fully headless (no port, no terminal UI)\n  --port N: serve the web UI on 127.0.0.1:N\n  --tui: the terminal UI (needs a terminal)\n  (`mcp`, `send` and `readme` as the first word run fantastic's own commands)";
+
+/// The first words that are fantastic's own commands, passed through untouched.
+const PASSTHROUGH: &[&str] = &["mcp", "send", "readme"];
+
+/// Whether `argv` is one of fantastic's own commands (`mcp`, `send`, `readme`).
+pub fn is_passthrough(argv: &[String]) -> bool {
+    argv.first()
+        .is_some_and(|a| PASSTHROUGH.contains(&a.as_str()))
+}
+
+/// What the team shows, if anything. Surfaces are opt-in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Surface {
+    /// No port, no terminal UI: fantastic's headless mode.
+    Headless,
+    /// The web UI on `127.0.0.1:<port>`: fantastic's canvas mode.
+    Port(u16),
+    /// The terminal UI.
+    Tui,
+}
 
 /// Parsed command line.
+#[derive(Debug)]
 pub struct Args {
     /// The directory the team lives in.
     pub dir: PathBuf,
+    /// The surface to serve.
+    pub surface: Surface,
 }
 
-/// Parse `--dir PATH` (default: the current directory).
+impl Args {
+    /// The arguments for `fantastic_tui::main_with` that run this surface:
+    /// `--headless`, `canvas --port N`, or none (its terminal UI).
+    pub fn fantastic_args(&self) -> Vec<String> {
+        match self.surface {
+            Surface::Headless => vec!["--headless".to_string()],
+            Surface::Port(p) => vec!["canvas".to_string(), "--port".to_string(), p.to_string()],
+            Surface::Tui => Vec::new(),
+        }
+    }
+}
+
+fn parse_port(v: &str) -> Result<u16, String> {
+    v.parse::<u16>()
+        .ok()
+        .filter(|p| *p != 0)
+        .ok_or_else(|| format!("--port needs a number from 1 to 65535, got `{v}`\n{USAGE}"))
+}
+
+/// Parse `--dir PATH` (default: the current directory) and the surface flags
+/// `--port N` and `--tui` (default: headless).
 pub fn parse_args(argv: &[String]) -> Result<Args, String> {
     let mut dir: Option<PathBuf> = None;
+    let mut port: Option<u16> = None;
+    let mut tui = false;
     let mut it = argv.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
@@ -50,6 +121,13 @@ pub fn parse_args(argv: &[String]) -> Result<Args, String> {
                     .ok_or_else(|| format!("--dir needs a value\n{USAGE}"))?;
                 dir = Some(PathBuf::from(v));
             }
+            "--port" => {
+                let v = it
+                    .next()
+                    .ok_or_else(|| format!("--port needs a value\n{USAGE}"))?;
+                port = Some(parse_port(v)?);
+            }
+            "--tui" => tui = true,
             "--help" | "-h" => return Err(USAGE.to_string()),
             other => return Err(format!("unknown argument `{other}`\n{USAGE}")),
         }
@@ -58,7 +136,17 @@ pub fn parse_args(argv: &[String]) -> Result<Args, String> {
         Some(d) => d,
         None => std::env::current_dir().map_err(|e| e.to_string())?,
     };
-    Ok(Args { dir })
+    if tui && port.is_some() {
+        return Err(format!(
+            "--port and --tui cannot be combined: fantastic serves the web UI without a terminal UI\n{USAGE}"
+        ));
+    }
+    let surface = match (port, tui) {
+        (Some(p), _) => Surface::Port(p),
+        (None, true) => Surface::Tui,
+        (None, false) => Surface::Headless,
+    };
+    Ok(Args { dir, surface })
 }
 
 /// Seed a fresh directory's base tree: a RAM memory store for the kernel's
@@ -149,23 +237,6 @@ async fn boot_kernel(kernel: &Arc<Kernel>) -> Result<(), String> {
     Ok(())
 }
 
-/// Run the team until Ctrl-C or a stop request, then tear down.
-pub async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
-    use std::io::Write;
-    let kernel = start(&args.dir).await?;
-    println!("[team] up");
-    std::io::stdout().flush()?;
-    tokio::select! {
-        _ = tokio::signal::ctrl_c() => {}
-        _ = kernel.shutdown_requested() => {}
-    }
-    println!("[team] tearing down");
-    kernel.shutdown().await;
-    bootstrap::shutdown(&args.dir)?;
-    println!("[team] down");
-    Ok(())
-}
-
 pub mod directives;
 
 #[cfg(test)]
@@ -204,10 +275,80 @@ mod tests {
         assert!(names.contains(&"team_github.tools"));
     }
 
+    fn v(a: &[&str]) -> Vec<String> {
+        a.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn register_team_adds_the_team_bundles_to_any_registry() {
+        let mut reg = BundleRegistry::new();
+        register_team(&mut reg);
+        let names: Vec<&str> = reg.catalog().map(|(n, _)| n).collect();
+        assert!(names.contains(&"team_git.tools"));
+        assert!(names.contains(&"team_github.tools"));
+        // An `fantastic_tui::Extra` is a plain fn over the registry.
+        let _extra: fantastic_tui::Extra = register_team;
+    }
+
     #[test]
     fn args_default_to_the_current_directory() {
         let a = parse_args(&[]).unwrap();
         assert_eq!(a.dir, std::env::current_dir().unwrap());
+    }
+
+    #[test]
+    fn no_surface_flag_is_fully_headless() {
+        let a = parse_args(&[]).unwrap();
+        assert_eq!(a.surface, Surface::Headless);
+        assert_eq!(a.fantastic_args(), v(&["--headless"]));
+        let d = parse_args(&v(&["--dir", "/x"])).unwrap();
+        assert_eq!(d.surface, Surface::Headless);
+    }
+
+    #[test]
+    fn port_serves_the_web_ui_on_that_port() {
+        let a = parse_args(&v(&["--port", "8123"])).unwrap();
+        assert_eq!(a.surface, Surface::Port(8123));
+        assert_eq!(a.fantastic_args(), v(&["canvas", "--port", "8123"]));
+        let b = parse_args(&v(&["--port", "9000", "--dir", "/x"])).unwrap();
+        assert_eq!(b.surface, Surface::Port(9000));
+        assert_eq!(b.dir, PathBuf::from("/x"));
+    }
+
+    #[test]
+    fn tui_opens_the_terminal_ui() {
+        let a = parse_args(&v(&["--tui"])).unwrap();
+        assert_eq!(a.surface, Surface::Tui);
+        assert!(a.fantastic_args().is_empty());
+    }
+
+    #[test]
+    fn bad_surface_flags_are_refused() {
+        for bad in [
+            &["--port"][..],
+            &["--port", "abc"],
+            &["--port", "0"],
+            &["--port", "70000"],
+            &["--port", "80", "--tui"],
+            &["--tui", "--port", "80"],
+            &["--canvas"],
+            &["--headless"],
+            &["canvas"],
+        ] {
+            let e = parse_args(&v(bad))
+                .err()
+                .unwrap_or_else(|| panic!("{bad:?} must be refused"));
+            assert!(e.contains("usage:"), "{bad:?}: {e}");
+        }
+    }
+
+    #[test]
+    fn fantastic_s_own_commands_pass_through() {
+        assert!(is_passthrough(&v(&["mcp"])));
+        assert!(is_passthrough(&v(&["send", "{}"])));
+        assert!(is_passthrough(&v(&["readme"])));
+        assert!(!is_passthrough(&[]));
+        assert!(!is_passthrough(&v(&["--port", "1"])));
     }
 
     #[test]
@@ -219,6 +360,7 @@ mod tests {
     #[test]
     fn unknown_args_and_help_are_refused() {
         let e = parse_args(&["--nope".to_string()]).err().unwrap();
+        assert!(!is_passthrough(&v(&["--nope"])));
         assert!(e.contains("unknown argument") && e.contains("usage:"));
         assert_eq!(parse_args(&["--help".to_string()]).err().unwrap(), USAGE);
         assert!(parse_args(&["--dir".to_string()]).is_err());

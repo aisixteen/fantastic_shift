@@ -13,8 +13,6 @@ use tempfile::TempDir;
 
 use crate::GitConnectorBundle;
 
-pub(crate) const STORE: &str = "creds";
-
 static ISOLATE: Once = Once::new();
 
 /// Keep the user's git config (helpers, hooks, signing, insteadOf) out of tests.
@@ -212,7 +210,10 @@ async fn commit_signs_off_with_the_identity_and_trailers() {
         "{c}"
     );
     let body = sh_git(&w1, &["log", "-1", "--format=%B"]);
-    assert!(body.contains("Signed-off-by: Shift Bot <bot@shift.test>"));
+    assert!(
+        body.contains("Signed-off-by: Shift Bot <bot@shift.test>"),
+        "{body}"
+    );
     assert!(body.contains("Co-Authored-By: Bot <bot@example.com>"));
     assert_eq!(
         sh_git(&w1, &["log", "-1", "--format=%an <%ae>"]),
@@ -455,4 +456,39 @@ async fn a_missing_arg_and_an_unknown_verb_are_refused() {
     assert_eq!(r["arg"], "branch");
     let u = f.call(json!({"type": "rebase"})).await;
     assert_eq!(u["reason"], "unhandled");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_branch_named_refs_is_refused() {
+    let f = fx(json!({}), None).await;
+    for b in ["refs/heads/main", "refs/heads/x"] {
+        let r = f
+            .call(json!({"type": "push", "path": "w1", "branch": b}))
+            .await;
+        assert_eq!(
+            r["error"],
+            format!("branch names are short names (no refs/ prefix): {b}")
+        );
+    }
+    let m = f
+        .call(json!({"type": "push", "path": "w1", "branch": "main"}))
+        .await;
+    assert_eq!(
+        m["error"],
+        "shift_git push: `main` is a protected branch (the default branch, main or master) — push a work branch instead"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn status_on_an_empty_branch_names_the_branch() {
+    let f = fx(json!({}), None).await;
+    f.call(
+        json!({"type": "worktree_add", "path": "w1", "branch": "work/one", "base": "origin/main"}),
+    )
+    .await;
+    let w1 = f.ws.join("w1");
+    sh_git(&w1, &["checkout", "--orphan", "empty"]);
+    let st = f.call(json!({"type": "status", "path": "w1"})).await;
+    assert_eq!(st["branch"], "empty", "{st}");
+    assert_eq!(st["empty"], true, "{st}");
 }

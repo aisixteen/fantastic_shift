@@ -189,6 +189,10 @@ pub(crate) async fn run(
         "GIT_TRACE_CURL",
         "GIT_CURL_VERBOSE",
         "GIT_TRACE_PACKET",
+        "GIT_AUTHOR_NAME",
+        "GIT_AUTHOR_EMAIL",
+        "GIT_COMMITTER_NAME",
+        "GIT_COMMITTER_EMAIL",
     ] {
         cmd.env_remove(k);
     }
@@ -467,6 +471,13 @@ async fn push_inner(
     if branch.starts_with('+') {
         return Err(bad(FORCE.to_string(), "force", json!(true)));
     }
+    if branch.starts_with("refs/") {
+        return Err(bad(
+            format!("branch names are short names (no refs/ prefix): {branch}"),
+            "branch",
+            json!(branch),
+        ));
+    }
     if branch == cfg.default_branch.as_str() || branch == "main" || branch == "master" {
         return Err(bad(
             format!("shift_git push: `{branch}` is a protected branch (the default branch, main or master) — push a work branch instead"),
@@ -596,10 +607,15 @@ pub(crate) async fn status(cfg: &Cfg, p: &Value) -> Result<Value, Value> {
     )
     .await?;
     let mut branch = String::new();
+    let mut empty = false;
     let mut entries: Vec<String> = Vec::new();
     for line in out.lines() {
         if let Some(rest) = line.strip_prefix("## ") {
             branch = rest.split("...").next().unwrap_or("").to_string();
+            if let Some(name) = branch.strip_prefix("No commits yet on ") {
+                branch = name.to_string();
+                empty = true;
+            }
         } else if !line.is_empty() {
             entries.push(line.to_string());
         }
@@ -607,6 +623,7 @@ pub(crate) async fn status(cfg: &Cfg, p: &Value) -> Result<Value, Value> {
     Ok(json!({
         "path": s(&path),
         "branch": branch,
+        "empty": empty,
         "clean": entries.is_empty(),
         "entries": entries,
     }))

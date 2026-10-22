@@ -2,6 +2,11 @@
 
 **Unattended work shifts on [fantastic](https://github.com/aisixteen/fantastic).** You queue tasks; a shift of AI workers takes them one by one, does the work on its own, and hands back finished results for you to review. You come back to done work, not to a chat.
 
+**How a shift works (1 min):**
+https://github.com/aisixteen/fantastic_shift/raw/main/media/how_it_works.mp4
+
+[media/how_it_works.mp4](media/how_it_works.mp4)
+
 It is not only for code. A task is any piece of work that can be described exactly and checked:
 
 | Kind of work | What a task looks like | What comes back |

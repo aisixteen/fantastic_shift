@@ -1,8 +1,8 @@
-//! The exec record a shift gives its workers.
+//! The exec record a team gives its workers.
 //!
 //! A worker runs its commands through a fantastic `exec_bridge.tools` agent
 //! built from [`worker_exec_record`]. Its HOME is a sandbox folder inside the
-//! shift with no credentials in it; its environment is a fixed list of names,
+//! team with no credentials in it; its environment is a fixed list of names,
 //! and no token, key or SSH agent is among them; its `allowed` pattern refuses
 //! forge CLIs (`gh`, `glab`, `hub`), `git push`, `git credential`, `git remote
 //! set-url`, any `credential.helper` setting and `api.github.com`.
@@ -20,12 +20,12 @@ use std::path::{Path, PathBuf};
 
 /// The fantastic bundle a worker's exec agent runs on.
 pub const EXEC_HANDLER: &str = "exec_bridge.tools";
-/// The worker's HOME, relative to the shift folder.
+/// The worker's HOME, relative to the team folder.
 pub const SANDBOX_HOME: &str = "sandbox/home";
-/// Where a worker's commands run, relative to the shift folder.
+/// Where a worker's commands run, relative to the team folder.
 pub const WORK_DIR: &str = "work";
 
-/// The ONLY names a worker's command inherits from the shift's environment.
+/// The ONLY names a worker's command inherits from the team's environment.
 pub const INHERIT_ENV: &[&str] = &[
     "PATH", "LANG", "LC_ALL", "LC_CTYPE", "TERM", "TMPDIR", "TZ", "USER", "LOGNAME", "SHELL",
 ];
@@ -65,14 +65,14 @@ pub const NO_SSH: &str =
 /// mentions `credential.helper`, or reaches `api.github.com`.
 pub const WORKER_ALLOWED: &str = r#"(?!.*(?:(?:^|[\s/'"`;&|(])(?:gh|glab|hub)(?:$|[\s'"`;&|)])|\bgit(?:\s+(?:-[Cc]\s+\S+|--?[\w.-]+(?:=\S*)?))*\s+(?:push|credential|remote\s+set-url)\b|credential\.helper|api\.github\.com)).*"#;
 
-/// The worker's HOME inside the shift folder.
-pub fn sandbox_home(shift_dir: &Path) -> PathBuf {
-    shift_dir.join(SANDBOX_HOME)
+/// The worker's HOME inside the team folder.
+pub fn sandbox_home(team_dir: &Path) -> PathBuf {
+    team_dir.join(SANDBOX_HOME)
 }
 
-/// The folder a worker's commands run in, inside the shift folder.
-pub fn work_dir(shift_dir: &Path) -> PathBuf {
-    shift_dir.join(WORK_DIR)
+/// The folder a worker's commands run in, inside the team folder.
+pub fn work_dir(team_dir: &Path) -> PathBuf {
+    team_dir.join(WORK_DIR)
 }
 
 /// True for a name that must not reach a worker's environment: a listed forge
@@ -87,10 +87,10 @@ pub fn forbidden_env_name(name: &str) -> bool {
 
 /// Make the sandbox home and the work dir, and refuse a home that already holds
 /// a credential. It never deletes anything.
-pub fn prepare_sandbox(shift_dir: &Path) -> std::io::Result<PathBuf> {
-    let home = sandbox_home(shift_dir);
+pub fn prepare_sandbox(team_dir: &Path) -> std::io::Result<PathBuf> {
+    let home = sandbox_home(team_dir);
     std::fs::create_dir_all(&home)?;
-    std::fs::create_dir_all(work_dir(shift_dir))?;
+    std::fs::create_dir_all(work_dir(team_dir))?;
     for name in CREDENTIAL_FILES {
         if home.join(name).exists() {
             return Err(std::io::Error::other(format!(
@@ -103,8 +103,8 @@ pub fn prepare_sandbox(shift_dir: &Path) -> std::io::Result<PathBuf> {
 }
 
 /// The exec record for a worker. Pure: touches no disk. Call [`prepare_sandbox`] first.
-pub fn worker_exec_record(shift_dir: &Path) -> Value {
-    let home = sandbox_home(shift_dir);
+pub fn worker_exec_record(team_dir: &Path) -> Value {
+    let home = sandbox_home(team_dir);
     let s = |p: &Path| p.to_string_lossy().into_owned();
     let mut env = Map::new();
     env.insert("HOME".into(), json!(s(&home)));
@@ -116,7 +116,7 @@ pub fn worker_exec_record(shift_dir: &Path) -> Value {
     json!({
         "handler_module": EXEC_HANDLER,
         "ingress_rule": "allow_all_ingress",
-        "cwd": s(&work_dir(shift_dir)),
+        "cwd": s(&work_dir(team_dir)),
         "allowed": [WORKER_ALLOWED],
         "inherit_env": INHERIT_ENV,
         "env": env,
@@ -161,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    fn the_record_points_home_into_the_shift() {
+    fn the_record_points_home_into_the_team() {
         let dir = tempfile::TempDir::new().unwrap();
         let rec = worker_exec_record(dir.path());
         let home = sandbox_home(dir.path()).to_string_lossy().into_owned();
@@ -270,7 +270,7 @@ mod tests {
             &["git", "-C", "/x", "status"],
             &["git", "log", "--oneline"],
             &["git", "pull"],
-            &["cargo", "test", "-p", "fantastic-shift"],
+            &["cargo", "test", "-p", "fantastic-team"],
             &["echo", "github"],
             &["grep", "-rn", "ghost", "."],
             &["python3", "-c", "print(1)"],

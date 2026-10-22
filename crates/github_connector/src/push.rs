@@ -6,7 +6,7 @@ use std::sync::Arc;
 use fantastic_kernel::{AgentId, Kernel};
 use reqwest::Url;
 use serde_json::{json, Value};
-use shift_git_connector::git::{self, Auth};
+use team_git_connector::git::{self, Auth};
 
 use crate::api::{redact, Api};
 use crate::app;
@@ -29,7 +29,7 @@ fn scrub_reply(mut v: Value, secrets: &[&str]) -> Value {
 pub(crate) async fn push(id: &AgentId, kernel: &Arc<Kernel>, cfg: &Cfg, payload: &Value) -> Value {
     let Some(git_id) = cfg.git.clone() else {
         return bad(
-            "shift_github push: no `git` on the record — name a git connector agent".into(),
+            "team_github push: no `git` on the record — name a git connector agent".into(),
             "git",
             json!(null),
         );
@@ -38,16 +38,16 @@ pub(crate) async fn push(id: &AgentId, kernel: &Arc<Kernel>, cfg: &Cfg, payload:
     let is_git = kernel
         .agents
         .get(&git_id)
-        .map(|e| e.handler_module.as_deref() == Some(shift_git_connector::HANDLER_MODULE))
+        .map(|e| e.handler_module.as_deref() == Some(team_git_connector::HANDLER_MODULE))
         .unwrap_or(false);
     if !is_git {
         return bad(
-            format!("shift_github push: `{git_id}` is not a git connector agent (shift_git.tools)"),
+            format!("team_github push: `{git_id}` is not a git connector agent (team_git.tools)"),
             "git",
             json!(git_id.to_string()),
         );
     }
-    let gcfg = match shift_git_connector::cfg_of(kernel, &git_id) {
+    let gcfg = match team_git_connector::cfg_of(kernel, &git_id) {
         Ok(c) => c,
         Err(e) => return e,
     };
@@ -61,7 +61,7 @@ pub(crate) async fn push(id: &AgentId, kernel: &Arc<Kernel>, cfg: &Cfg, payload:
     };
     let not_https = || {
         bad(
-            "shift_github push: the git agent's remote must be an https URL of a GitHub repository"
+            "team_github push: the git agent's remote must be an https URL of a GitHub repository"
                 .into(),
             "remote",
             json!("[url withheld]"),
@@ -91,7 +91,7 @@ pub(crate) async fn push(id: &AgentId, kernel: &Arc<Kernel>, cfg: &Cfg, payload:
     if remote_host != git_host {
         return bad(
             format!(
-                "shift_github push: the git agent's remote is on `{remote_host}`, not on `{git_host}` — a token is sent only to the GitHub that minted it"
+                "team_github push: the git agent's remote is on `{remote_host}`, not on `{git_host}` — a token is sent only to the GitHub that minted it"
             ),
             "remote",
             json!("[url withheld]"),
@@ -104,7 +104,7 @@ pub(crate) async fn push(id: &AgentId, kernel: &Arc<Kernel>, cfg: &Cfg, payload:
         .to_string();
     if !valid_repo(&repo_path) {
         return bad(
-            "shift_github push: the git agent's remote does not name a repository as owner/name"
+            "team_github push: the git agent's remote does not name a repository as owner/name"
                 .into(),
             "remote",
             json!("[url withheld]"),
@@ -118,7 +118,7 @@ pub(crate) async fn push(id: &AgentId, kernel: &Arc<Kernel>, cfg: &Cfg, payload:
     else {
         return bad(
             format!(
-                "shift_github push: `{repo_path}` is not in this connector's repos ({})",
+                "team_github push: `{repo_path}` is not in this connector's repos ({})",
                 cfg.repos.join(", ")
             ),
             "repo",

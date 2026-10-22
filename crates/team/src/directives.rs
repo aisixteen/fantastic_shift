@@ -1,6 +1,6 @@
-//! The directives agents of a shift run from, as files. Two ship with the binary:
+//! The directives agents of a team run from, as files. Two ship with the binary:
 //! the worker's (claim a task file in the queue, do it, hand it back, repeat) and the
-//! shifter's (start workers from templates, keep them going, stop the ones that go
+//! lead's (start workers from templates, keep them going, stop the ones that go
 //! wrong, clean up). A config may name another file instead. Neither names a
 //! provider, a model or a kind of work: a task's own instructions say what the work is.
 
@@ -9,8 +9,8 @@ use std::path::Path;
 /// The worker directive shipped with the binary (`directives/worker.md`).
 pub const WORKER: &str = include_str!("../../../directives/worker.md");
 
-/// The shifter directive shipped with the binary (`directives/shifter.md`).
-pub const SHIFTER: &str = include_str!("../../../directives/shifter.md");
+/// The lead directive shipped with the binary (`directives/lead.md`).
+pub const LEAD: &str = include_str!("../../../directives/lead.md");
 
 /// Read a directive file. Its text, or why it cannot be used.
 pub fn load(path: &Path) -> Result<String, String> {
@@ -49,9 +49,9 @@ mod tests {
     #[test]
     fn the_defaults_are_not_empty() {
         assert!(!WORKER.trim().is_empty());
-        assert!(!SHIFTER.trim().is_empty());
+        assert!(!LEAD.trim().is_empty());
         assert!(WORKER.starts_with("# The worker directive"));
-        assert!(SHIFTER.starts_with("# The shifter directive"));
+        assert!(LEAD.starts_with("# The lead directive"));
     }
 
     #[test]
@@ -76,7 +76,7 @@ mod tests {
     }
 
     #[test]
-    fn the_shifter_reads_and_guards_the_task_files() {
+    fn the_lead_reads_and_guards_the_task_files() {
         for s in [
             "if_match",
             "version",
@@ -91,13 +91,13 @@ mod tests {
             "update_agent",
             "wait_s",
         ] {
-            assert!(SHIFTER.contains(s), "shifter directive lacks {s}");
+            assert!(LEAD.contains(s), "lead directive lacks {s}");
         }
     }
 
     #[test]
     fn no_directive_uses_the_old_queue_agent_verbs() {
-        for (name, text) in [("worker", WORKER), ("shifter", SHIFTER)] {
+        for (name, text) in [("worker", WORKER), ("lead", LEAD)] {
             for s in [
                 "<type>take</type>",
                 "<type>renew</type>",
@@ -111,7 +111,7 @@ mod tests {
 
     #[test]
     fn the_directives_name_no_provider_or_model() {
-        for (name, text) in [("worker", WORKER), ("shifter", SHIFTER)] {
+        for (name, text) in [("worker", WORKER), ("lead", LEAD)] {
             for d in DENY {
                 assert!(
                     !text.to_lowercase().contains(d),
@@ -129,13 +129,13 @@ mod tests {
 
     #[test]
     fn the_rules_are_in_both() {
-        for text in [WORKER, SHIFTER] {
+        for text in [WORKER, LEAD] {
             assert!(text.contains("wait_s"));
             assert!(text.contains("await"));
             assert!(text.contains("<call name=\"done\"></call>"));
         }
-        assert!(SHIFTER.contains("generating"));
-        assert!(SHIFTER.contains("fantastic#227"));
+        assert!(LEAD.contains("generating"));
+        assert!(LEAD.contains("fantastic#227"));
     }
 
     #[test]

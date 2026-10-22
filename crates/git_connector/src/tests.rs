@@ -18,7 +18,7 @@ static ISOLATE: Once = Once::new();
 /// Keep the user's git config (helpers, hooks, signing, insteadOf) out of tests.
 pub(crate) fn isolate() {
     ISOLATE.call_once(|| {
-        let p = std::env::temp_dir().join("shift-git-tests.gitconfig");
+        let p = std::env::temp_dir().join("team-git-tests.gitconfig");
         std::fs::write(&p, "").unwrap();
         std::env::set_var("GIT_CONFIG_GLOBAL", &p);
         std::env::set_var("GIT_CONFIG_NOSYSTEM", "1");
@@ -30,7 +30,7 @@ pub(crate) fn sh_git(dir: &Path, args: &[&str]) -> String {
     let out = std::process::Command::new("git")
         .arg("-C")
         .arg(dir)
-        .args(["-c", "user.name=Seed", "-c", "user.email=seed@shift.test"])
+        .args(["-c", "user.name=Seed", "-c", "user.email=seed@team.test"])
         .args(args)
         .output()
         .unwrap();
@@ -99,8 +99,8 @@ pub(crate) async fn fx(extra: Value, token: Option<(&str, &str)>) -> Fx {
         "workspace_root": ws.to_str().unwrap(),
         "remote": "origin",
         "default_branch": "main",
-        "author_name": "Shift Bot",
-        "author_email": "bot@shift.test",
+        "author_name": "Team Bot",
+        "author_email": "bot@team.test",
     });
     if let Value::Object(extra) = extra {
         for (key, value) in extra {
@@ -211,21 +211,18 @@ async fn commit_signs_off_with_the_identity_and_trailers() {
     );
     let body = sh_git(&w1, &["log", "-1", "--format=%B"]);
     assert!(
-        body.contains("Signed-off-by: Shift Bot <bot@shift.test>"),
+        body.contains("Signed-off-by: Team Bot <bot@team.test>"),
         "{body}"
     );
     assert!(body.contains("Co-Authored-By: Bot <bot@example.com>"));
     assert_eq!(
         sh_git(&w1, &["log", "-1", "--format=%an <%ae>"]),
-        "Shift Bot <bot@shift.test>"
+        "Team Bot <bot@team.test>"
     );
     let again = f
         .call(json!({"type": "commit", "path": "w1", "message": "again"}))
         .await;
-    assert_eq!(
-        again["error"],
-        "shift_git commit: nothing to commit in `w1`"
-    );
+    assert_eq!(again["error"], "team_git commit: nothing to commit in `w1`");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -294,7 +291,7 @@ async fn push_refuses_the_protected_branches() {
             .await;
         assert_eq!(
             r["error"],
-            format!("shift_git push: `{b}` is a protected branch (the default branch, main or master) — push a work branch instead")
+            format!("team_git push: `{b}` is a protected branch (the default branch, main or master) — push a work branch instead")
         );
     }
     assert_eq!(
@@ -317,14 +314,14 @@ async fn push_never_forces() {
         .await;
     assert_eq!(
         a["error"],
-        "shift_git push: a force push is never made — push a new branch name instead"
+        "team_git push: a force push is never made — push a new branch name instead"
     );
     let b = f
         .call(json!({"type": "push", "path": "w1", "branch": "+work/one"}))
         .await;
     assert_eq!(
         b["error"],
-        "shift_git push: a force push is never made — push a new branch name instead"
+        "team_git push: a force push is never made — push a new branch name instead"
     );
     assert!(sh_git(&f.bare, &["for-each-ref", "refs/heads"])
         .lines()
@@ -358,7 +355,7 @@ async fn paths_outside_the_root_are_refused() {
             assert_eq!(
                 r["error"],
                 format!(
-                    "shift_git {verb}: path `{bad_path}` is outside the workspace root `{}`",
+                    "team_git {verb}: path `{bad_path}` is outside the workspace root `{}`",
                     f.ws.canonicalize().unwrap().display()
                 ),
                 "{verb} {bad_path}"
@@ -372,7 +369,7 @@ async fn paths_outside_the_root_are_refused() {
     assert_eq!(
         r["error"],
         format!(
-            "shift_git status: `plain` is not a worktree of `{}`",
+            "team_git status: `plain` is not a worktree of `{}`",
             f.repo.display()
         )
     );
@@ -386,7 +383,7 @@ async fn options_cannot_be_injected() {
         .await;
     assert_eq!(
         a["error"],
-        "shift_git worktree_add: `branch` must not start with `-`"
+        "team_git worktree_add: `branch` must not start with `-`"
     );
     assert_eq!(a["reason"], "bad_arg");
     let b = f
@@ -394,7 +391,7 @@ async fn options_cannot_be_injected() {
         .await;
     assert_eq!(
         b["error"],
-        "shift_git worktree_add: `base` must not start with `-`"
+        "team_git worktree_add: `base` must not start with `-`"
     );
     let c = f
         .call(
@@ -403,7 +400,7 @@ async fn options_cannot_be_injected() {
         .await;
     assert_eq!(
         c["error"],
-        "shift_git worktree_add: `a..b` is not a valid branch name"
+        "team_git worktree_add: `a..b` is not a valid branch name"
     );
 }
 
@@ -424,7 +421,7 @@ async fn the_record_is_validated() {
         (json!({"workspace_root": "rel/dir"}), "`workspace_root` must be an absolute path"),
         (
             json!({"remote": "https://bob:hunter2@example.com/r.git"}),
-            "shift_git: the remote URL carries a user or password — remove it and name a credential store ref in credentials instead",
+            "team_git: the remote URL carries a user or password — remove it and name a credential store ref in credentials instead",
         ),
         (json!({"author_name": "A"}), "`author_name` and `author_email` go together"),
         (json!({"timeout_s": 0}), "`timeout_s` must be a positive int"),
@@ -475,7 +472,7 @@ async fn a_branch_named_refs_is_refused() {
         .await;
     assert_eq!(
         m["error"],
-        "shift_git push: `main` is a protected branch (the default branch, main or master) — push a work branch instead"
+        "team_git push: `main` is a protected branch (the default branch, main or master) — push a work branch instead"
     );
 }
 

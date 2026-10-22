@@ -1,13 +1,13 @@
 [package]
-name = "fantastic-shift"
-description = "Unattended work shifts on fantastic — the program."
+name = "fantastic-team"
+description = "AISixteen Fantastic Team: unattended team work on fantastic — the program."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
 [[bin]]
-name = "fantastic_shift"
+name = "fantastic_team"
 path = "src/main.rs"
 
 [lib]
@@ -17,13 +17,13 @@ path = "src/lib.rs"
 fantastic-kernel.workspace = true
 fantastic-host.workspace = true
 fantastic-bundle.workspace = true
-shift-git-connector = { path = "../git_connector" }
-shift-github-connector = { path = "../github_connector" }
+team-git-connector = { path = "../git_connector" }
+team-github-connector = { path = "../github_connector" }
 tokio.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 
 [dev-dependencies]
 tempfile = "3"
-fantastic-shift-secrets-guard = { path = "../secrets_guard" }
+fantastic-team-secrets-guard = { path = "../secrets_guard" }
 fantastic-exec-bridge.workspace = true

@@ -35,7 +35,7 @@ fn now_secs() -> u64 {
 
 fn cred_error(cfg: &Cfg, what: &str) -> Value {
     json!({"error": format!(
-        "shift_github: credential `{}` in `{}`: {what}",
+        "team_github: credential `{}` in `{}`: {what}",
         cfg.app_cred.1, cfg.app_cred.0
     )})
 }
@@ -128,7 +128,7 @@ pub(crate) async fn token_for(
         .await
         .map_err(|(_, v)| v)?;
     let install = inst.get("id").and_then(|v| v.as_u64()).ok_or_else(
-        || json!({"error": format!("shift_github {verb}: no installation id for {repo}")}),
+        || json!({"error": format!("team_github {verb}: no installation id for {repo}")}),
     )?;
     let name = repo.split('/').nth(1).unwrap_or("");
     let minted = api
@@ -147,5 +147,5 @@ pub(crate) async fn token_for(
         .and_then(|t| t.as_str())
         .filter(|t| !t.is_empty())
         .map(str::to_string)
-        .ok_or_else(|| json!({"error": format!("shift_github {verb}: GitHub minted no token")}))
+        .ok_or_else(|| json!({"error": format!("team_github {verb}: GitHub minted no token")}))
 }

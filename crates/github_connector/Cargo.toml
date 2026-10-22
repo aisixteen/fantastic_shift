@@ -1,5 +1,5 @@
 [package]
-name = "shift-github-connector"
+name = "team-github-connector"
 description = "The github connector agent: a GitHub App bound by configuration — push via the git connector, draft pull requests, issues, comments, labels, PR status."
 version.workspace = true
 edition.workspace = true
@@ -7,7 +7,7 @@ license.workspace = true
 publish = false
 
 [lib]
-name = "shift_github_connector"
+name = "team_github_connector"
 path = "src/lib.rs"
 
 [dependencies]
@@ -16,7 +16,7 @@ fantastic-ai-core.workspace = true
 async-trait.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
-shift-git-connector = { path = "../git_connector" }
+team-git-connector = { path = "../git_connector" }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 jsonwebtoken = "=9.3.1"
 serde = { version = "1", features = ["derive"] }

@@ -1,4 +1,4 @@
-//! The github connector agent (`shift_github.tools`): one GitHub App, bound by
+//! The github connector agent (`team_github.tools`): one GitHub App, bound by
 //! configuration. It pushes work branches through a git connector agent, opens
 //! draft pull requests, and reads and writes issues, comments, labels and PR status
 //! on an allowlist of repositories.
@@ -32,9 +32,9 @@ use fantastic_kernel::{AgentId, Kernel};
 use serde_json::{json, Map, Value};
 
 /// The handler module name this bundle registers under.
-pub const HANDLER_MODULE: &str = "shift_github.tools";
+pub const HANDLER_MODULE: &str = "team_github.tools";
 /// The bundle name.
-const NAME: &str = "shift_github";
+const NAME: &str = "team_github";
 /// The readme shown by `reflect` and the kernel.
 pub const README: &str = include_str!("readme.md");
 /// One-line sentence of what the agent is.
@@ -48,7 +48,7 @@ const DEFAULT_API: &str = "https://api.github.com";
 #[derive(Default)]
 pub struct GithubConnectorBundle;
 
-/// The record schema of a `shift_github` agent, as the catalog publishes it.
+/// The record schema of a `team_github` agent, as the catalog publishes it.
 pub(crate) fn record_schema() -> &'static Value {
     static S: OnceLock<Value> = OnceLock::new();
     S.get_or_init(|| {
@@ -56,8 +56,8 @@ pub(crate) fn record_schema() -> &'static Value {
             Field::new("app", "map", "{credentials: {store, ref}} — the ref holds fields app_id and private_key (PEM), bound to api_url's host").required().json(),
             Field::new("repos", "list", "the allowlist: [\"owner/name\", …] — every other repo is refused").required().json(),
             Field::new("api_url", "str", "the GitHub API root (GitHub Enterprise: https://<host>/api/v3)").default(json!(DEFAULT_API)).json(),
-            Field::new("git", "str", "the id of a git connector agent (shift_git.tools) whose worktrees push uses").json(),
-            Field::new("directive", "str", "what the shifter and workers may do with this connector, and how — returned by the directive verb").required().json(),
+            Field::new("git", "str", "the id of a git connector agent (team_git.tools) whose worktrees push uses").json(),
+            Field::new("directive", "str", "what the lead and workers may do with this connector, and how — returned by the directive verb").required().json(),
             Field::new("timeout_s", "int", "seconds one GitHub API request may take").default(json!(30)).json(),
         ]})
     })
@@ -141,7 +141,7 @@ pub(crate) fn bad(text: String, arg: &str, value: Value) -> Value {
 }
 
 fn bad_field(field: &str) -> String {
-    format!("shift_github: `{field}` must be a non-empty string")
+    format!("team_github: `{field}` must be a non-empty string")
 }
 
 fn validate_app(app: &Value) -> Option<String> {
@@ -161,7 +161,7 @@ fn validate_app(app: &Value) -> Option<String> {
     if ok {
         None
     } else {
-        Some("shift_github: `app` must be {credentials: {store, ref}}".into())
+        Some("team_github: `app` must be {credentials: {store, ref}}".into())
     }
 }
 
@@ -172,14 +172,14 @@ fn validate_repos(repos: &Value) -> Option<String> {
     if ok {
         None
     } else {
-        Some("shift_github: `repos` must be a non-empty list of \"owner/name\"".into())
+        Some("team_github: `repos` must be a non-empty list of \"owner/name\"".into())
     }
 }
 
 fn validate_api_url(v: &Value) -> Option<String> {
     let bad = || {
         Some(
-            "shift_github: `api_url` must be an https URL (or http to 127.0.0.1, ::1 or localhost)"
+            "team_github: `api_url` must be an https URL (or http to 127.0.0.1, ::1 or localhost)"
                 .into(),
         )
     };
@@ -259,7 +259,7 @@ impl Bundle for GithubConnectorBundle {
         if let Some(v) = get("timeout_s") {
             let ok = !v.is_boolean() && v.as_u64().is_some_and(|n| n > 0);
             if !ok {
-                return Some("shift_github: `timeout_s` must be a positive int".into());
+                return Some("team_github: `timeout_s` must be a positive int".into());
             }
         }
         schema::validate(record_schema(), NAME, meta, record)

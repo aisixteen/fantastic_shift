@@ -1,12 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["crates/shift", "crates/secrets_guard", "crates/git_connector", "crates/github_connector"]
+members = ["crates/team", "crates/secrets_guard", "crates/git_connector", "crates/github_connector"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
 license = "AGPL-3.0-or-later"
-repository = "https://github.com/aisixteen/fantastic_shift"
+repository = "https://github.com/aisixteen/fantastic_team"
 
 [workspace.dependencies]
 # fantastic, followed by BRANCH; Cargo.lock pins the exact commit. Update all fantastic crates at once with

@@ -2,7 +2,7 @@
 # remote-attach.sh <name> [--port N] [--tui] [--dry-run]
 # Opens an SSH tunnel 127.0.0.1:N (laptop) → 127.0.0.1:N (box) with keep-alives,
 # re-opens it when it drops, and prints the local URL. Ctrl-C detaches: it closes
-# only the tunnel; the shift on the box keeps running. Needs no keys.
+# only the tunnel; the team on the box keeps running. Needs no keys.
 set -eu
 PROG=remote-attach
 . "$(dirname "$0")/remote-common.sh"

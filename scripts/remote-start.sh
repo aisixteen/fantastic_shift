@@ -1,6 +1,6 @@
 #!/bin/sh
 # remote-start.sh <name> [--port N] [--dry-run]
-# Starts the shift on the box DETACHED and returns at once. The values of the
+# Starts the team on the box DETACHED and returns at once. The values of the
 # variables named by the remote's keys= are read here, on the laptop, and piped
 # over SSH stdin as NAME=<base64> lines into the remote shell's memory: never in
 # an argv (ps), never in a file, never in shell history. The binary binds
@@ -33,8 +33,8 @@ done
 START='d=$1 b=$2 p=$3
 cd "$d" || { echo "no such dir on the box: $d" >&2; exit 3; }
 mkdir -p logs
-if [ -f logs/shift.pid ] && kill -0 "$(cat logs/shift.pid)" 2>/dev/null; then
-  echo "already running · pid $(cat logs/shift.pid)" >&2; exit 4
+if [ -f logs/team.pid ] && kill -0 "$(cat logs/team.pid)" 2>/dev/null; then
+  echo "already running · pid $(cat logs/team.pid)" >&2; exit 4
 fi
 while IFS= read -r l; do
   n=${l%%=*}
@@ -45,9 +45,9 @@ done
 v=
 set -- --dir "$d"
 if [ -n "$p" ]; then set -- "$@" --host 127.0.0.1 --port "$p"; fi
-rm -f logs/shift.stopped
+rm -f logs/team.stopped
 nohup "$b" "$@" </dev/null >>logs/kernel.log 2>&1 &
-echo $! >logs/shift.pid
+echo $! >logs/team.pid
 echo "$! $d/logs/kernel.log"'
 
 cmd=$(remote_cmd "$START" "$R_DIR" "$R_BIN" "$port")

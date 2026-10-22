@@ -1,6 +1,6 @@
 <!--
 Thanks for the PR. Keep it focused on one concern. Only the maintainer and the
-Fantastic Shift app open pull requests here (see CONTRIBUTING.md).
+AISixteen Fantastic Team app open pull requests here (see CONTRIBUTING.md).
 -->
 
 ## What & why
@@ -10,7 +10,7 @@ Fantastic Shift app open pull requests here (see CONTRIBUTING.md).
 ## Part(s) touched
 
 - [ ] headless binary
-- [ ] workers / shifter / queue
+- [ ] workers / lead / queue
 - [ ] connectors (git, GitHub)
 - [ ] web UI / app
 - [ ] packs

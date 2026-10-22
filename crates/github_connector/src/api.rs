@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use reqwest::Method;
 use serde_json::{json, Value};
-use shift_git_connector::git::{redact as git_redact, Auth};
+use team_git_connector::git::{redact as git_redact, Auth};
 
 /// Replace every given secret in `s` with the shown marker.
 pub(crate) fn redact(s: &str, secrets: &[&str]) -> String {
@@ -36,7 +36,7 @@ impl Api {
     pub(crate) fn new(cfg: &crate::Cfg) -> Api {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(cfg.timeout_s))
-            .user_agent("fantastic-shift-github-connector")
+            .user_agent("fantastic-team-github-connector")
             .build()
             .expect("http client");
         Api {
@@ -73,7 +73,7 @@ impl Api {
                 return Err((
                     0,
                     json!({
-                        "error": redact(&format!("shift_github {verb}: GitHub unreachable: {e}"), &[bearer]),
+                        "error": redact(&format!("team_github {verb}: GitHub unreachable: {e}"), &[bearer]),
                         "transport": true,
                     }),
                 ))
@@ -101,7 +101,7 @@ impl Api {
             code,
             json!({
                 "error": redact(
-                    &format!("shift_github {verb}: GitHub answered {code} to {method} {path}: {message}"),
+                    &format!("team_github {verb}: GitHub answered {code} to {method} {path}: {message}"),
                     &[bearer],
                 ),
                 "status": code,

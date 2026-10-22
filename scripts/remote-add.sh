@@ -6,7 +6,7 @@ PROG=remote-add
 . "$(dirname "$0")/remote-common.sh"
 USAGE='usage: remote-add.sh <name> <host>:<dir> [--bin PATH] [--port N] [--keys "NAME …"] [--dry-run]'
 
-name= target= bin=fantastic_shift port= keys=
+name= target= bin=fantastic_team port= keys=
 while [ $# -gt 0 ]; do
     case $1 in
         --bin) [ $# -ge 2 ] || die "--bin needs a path"; bin=$2; shift 2 ;;

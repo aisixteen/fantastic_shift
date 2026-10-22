@@ -1,12 +1,12 @@
 name: Feature request
-description: Propose a capability, a connector, or a change to how shifts work.
+description: Propose a capability, a connector, or a change to how the team works.
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        The shift is configuration over code: workers, connectors and their directives
-        live in `shift.yaml`. First consider whether your idea is a directive, a
+        The team is configuration over code: workers, connectors and their directives
+        live in `team.yaml`. First consider whether your idea is a directive, a
         template or a connector binding rather than new code. See the roadmap (issue #1).
   - type: textarea
     id: problem

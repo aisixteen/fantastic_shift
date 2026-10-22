@@ -43,7 +43,7 @@ cat >"$T/box/fakebin" <<'FAKE'
 printf '%s\n' "$@" >"$FAKE_OUT/args"
 printf '%s' "${SHIFT_TEST_KEY:-}" | cksum >"$FAKE_OUT/key.cksum"
 trap 'echo term >"$FAKE_OUT/signal"; exit 0' TERM
-echo "fake shift up"
+echo "fake team up"
 while :; do sleep 1; done
 FAKE
 chmod +x "$T/box/fakebin"
@@ -196,7 +196,7 @@ else bad attach_tui_is_refused_for_now "rc=$rc $(cat "$R")"; fi
 # 12. logs_tails_the_box_log
 STUB_BOX=1 sh "$S/remote-logs.sh" gpu -n 5 >"$R" 2>&1
 rc=$?
-if [ "$rc" = 0 ] && has "$R" "fake shift up"; then
+if [ "$rc" = 0 ] && has "$R" "fake team up"; then
     ok logs_tails_the_box_log
 else bad logs_tails_the_box_log "rc=$rc $(cat "$R")"; fi
 sh "$S/remote-logs.sh" gpu -f --dry-run >"$R" 2>&1

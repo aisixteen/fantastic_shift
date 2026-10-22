@@ -37,7 +37,7 @@ fn fake_forge() -> (u16, Arc<Mutex<Vec<String>>>) {
                 .unwrap()
                 .push(String::from_utf8_lossy(&head).into_owned());
             let _ = stream.write_all(
-                b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"shift\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"team\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
             );
         }
     });
@@ -49,7 +49,7 @@ async fn the_https_token_never_leaves_the_agent() {
     let (port, seen) = fake_forge();
     let url = format!("http://127.0.0.1:{port}/org/repo.git");
     let f = fx(
-        json!({"remote": url, "username": "shift-bot"}),
+        json!({"remote": url, "username": "team-bot"}),
         Some((&url, TOKEN)),
     )
     .await;
@@ -81,7 +81,7 @@ async fn the_https_token_never_leaves_the_agent() {
         assert!(!serde_json::to_string(r).unwrap().contains(TOKEN), "{r}");
     }
     // 2. The forge saw the token in the Basic header, and only there.
-    let want = base64::engine::general_purpose::STANDARD.encode(format!("shift-bot:{TOKEN}"));
+    let want = base64::engine::general_purpose::STANDARD.encode(format!("team-bot:{TOKEN}"));
     let heads = seen.lock().unwrap().clone();
     assert!(
         heads
@@ -144,7 +144,7 @@ async fn plain_http_to_a_remote_host_is_refused() {
         .await;
     assert_eq!(
         r["error"],
-        "shift_git: credentials are sent only over https (or http to 127.0.0.1, ::1 or localhost) — refused"
+        "team_git: credentials are sent only over https (or http to 127.0.0.1, ::1 or localhost) — refused"
     );
     assert!(!serde_json::to_string(&r).unwrap().contains(TOKEN));
 }
@@ -191,10 +191,10 @@ fn the_helper_gives_no_credentials_for_another_host() {
             "-c",
             &format!("{helper} get <<'EOF'\nprotocol=http\nhost=evil.example:80\n\nEOF"),
         ])
-        .env("SHIFT_GIT_USERNAME", "u")
-        .env("SHIFT_GIT_TOKEN", TOKEN)
-        .env("SHIFT_GIT_HOST", "127.0.0.1:1")
-        .env("SHIFT_GIT_PROTO", "http")
+        .env("TEAM_GIT_USERNAME", "u")
+        .env("TEAM_GIT_TOKEN", TOKEN)
+        .env("TEAM_GIT_HOST", "127.0.0.1:1")
+        .env("TEAM_GIT_PROTO", "http")
         .output()
         .unwrap();
     let text = String::from_utf8_lossy(&out.stdout);

@@ -13,7 +13,7 @@ use crate::{bad, Cfg};
 pub(crate) fn outside(verb: &str, path: &str, root: &Path) -> Value {
     bad(
         format!(
-            "shift_git {verb}: path `{path}` is outside the workspace root `{}`",
+            "team_git {verb}: path `{path}` is outside the workspace root `{}`",
             root.display()
         ),
         "path",
@@ -25,7 +25,7 @@ pub(crate) fn outside(verb: &str, path: &str, root: &Path) -> Value {
 pub(crate) fn not_worktree(verb: &str, path: &str, repo_dir: &Path) -> Value {
     bad(
         format!(
-            "shift_git {verb}: `{path}` is not a worktree of `{}`",
+            "team_git {verb}: `{path}` is not a worktree of `{}`",
             repo_dir.display()
         ),
         "path",
@@ -48,7 +48,7 @@ pub(crate) fn inside_root(root: &Path, raw: &str, verb: &str) -> Result<PathBuf,
         root.join(raw)
     };
     let canon_root = root.canonicalize().map_err(|_| {
-        json!({"error": format!("shift_git: workspace_root `{}` does not exist", root.display())})
+        json!({"error": format!("team_git: workspace_root `{}` does not exist", root.display())})
     })?;
     // Canonicalize the nearest existing ancestor, then re-join the missing tail.
     let mut existing = abs.clone();

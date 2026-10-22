@@ -1,4 +1,4 @@
-//! fantastic_shift as a library: a headless fantastic host that boots in a
+//! fantastic_team as a library: a headless fantastic host that boots in a
 //! directory and runs until stopped. `main.rs` is a thin wrapper around `run`.
 #![deny(missing_docs)]
 
@@ -13,28 +13,28 @@ use serde_json::json;
 
 pub mod worker_exec;
 
-/// The bundle registry the shift boots with. fantastic's default set comes
+/// The bundle registry the team boots with. fantastic's default set comes
 /// from fantastic-host; this repo's own bundles (queue, connectors) are added
 /// here as they land.
 pub fn registry() -> BundleRegistry {
     let mut reg = fantastic_host::default_bundles();
     reg.register(
-        shift_git_connector::HANDLER_MODULE,
-        shift_git_connector::GitConnectorBundle,
+        team_git_connector::HANDLER_MODULE,
+        team_git_connector::GitConnectorBundle,
     );
     reg.register(
-        shift_github_connector::HANDLER_MODULE,
-        shift_github_connector::GithubConnectorBundle,
+        team_github_connector::HANDLER_MODULE,
+        team_github_connector::GithubConnectorBundle,
     );
     reg
 }
 
 /// Usage line, printed on `--help` and on bad arguments.
-pub const USAGE: &str = "usage: fantastic_shift [--dir PATH]";
+pub const USAGE: &str = "usage: fantastic_team [--dir PATH]";
 
 /// Parsed command line.
 pub struct Args {
-    /// The directory the shift lives in.
+    /// The directory the team lives in.
     pub dir: PathBuf,
 }
 
@@ -149,20 +149,20 @@ async fn boot_kernel(kernel: &Arc<Kernel>) -> Result<(), String> {
     Ok(())
 }
 
-/// Run the shift until Ctrl-C or a stop request, then tear down.
+/// Run the team until Ctrl-C or a stop request, then tear down.
 pub async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     use std::io::Write;
     let kernel = start(&args.dir).await?;
-    println!("[shift] up");
+    println!("[team] up");
     std::io::stdout().flush()?;
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {}
         _ = kernel.shutdown_requested() => {}
     }
-    println!("[shift] tearing down");
+    println!("[team] tearing down");
     kernel.shutdown().await;
     bootstrap::shutdown(&args.dir)?;
-    println!("[shift] down");
+    println!("[team] down");
     Ok(())
 }
 
@@ -194,14 +194,14 @@ mod tests {
     fn the_registry_has_the_git_connector() {
         let reg = registry();
         let names: Vec<&str> = reg.catalog().map(|(n, _)| n).collect();
-        assert!(names.contains(&"shift_git.tools"));
+        assert!(names.contains(&"team_git.tools"));
     }
 
     #[test]
     fn the_registry_has_the_github_connector() {
         let reg = registry();
         let names: Vec<&str> = reg.catalog().map(|(n, _)| n).collect();
-        assert!(names.contains(&"shift_github.tools"));
+        assert!(names.contains(&"team_github.tools"));
     }
 
     #[test]

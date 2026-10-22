@@ -1,4 +1,4 @@
-//! The git connector agent (`shift_git.tools`): one local clone and one
+//! The git connector agent (`team_git.tools`): one local clone and one
 //! remote. It makes worktrees, commits and pushes work branches. It never
 //! pushes the default branch, `main` or `master`, and never forces.
 //!
@@ -26,9 +26,9 @@ use fantastic_kernel::{AgentId, Kernel};
 use serde_json::{json, Map, Value};
 
 /// The handler module name this bundle registers under.
-pub const HANDLER_MODULE: &str = "shift_git.tools";
+pub const HANDLER_MODULE: &str = "team_git.tools";
 /// The bundle name.
-const NAME: &str = "shift_git";
+const NAME: &str = "team_git";
 /// The readme shown by `reflect` and the kernel.
 pub const README: &str = include_str!("readme.md");
 /// One-line sentence of what the agent is.
@@ -38,13 +38,13 @@ const BAD_ARG: &str = "bad_arg";
 const UNHANDLED: &str = "unhandled";
 
 /// Refusal text: the record's remote carries a user or password.
-pub(crate) const URL_CREDS: &str = "shift_git: the remote URL carries a user or password — remove it and name a credential store ref in credentials instead";
+pub(crate) const URL_CREDS: &str = "team_git: the remote URL carries a user or password — remove it and name a credential store ref in credentials instead";
 
 /// The git connector bundle.
 #[derive(Default)]
 pub struct GitConnectorBundle;
 
-/// The record schema of a `shift_git` agent, as the catalog publishes it.
+/// The record schema of a `team_git` agent, as the catalog publishes it.
 pub(crate) fn record_schema() -> &'static Value {
     static S: OnceLock<Value> = OnceLock::new();
     S.get_or_init(|| {
@@ -121,7 +121,7 @@ pub fn cfg_of(kernel: &Kernel, id: &AgentId) -> Result<Cfg, Value> {
     let entry = kernel
         .agents
         .get(id)
-        .ok_or_else(|| json!({"error": format!("shift_git: no agent `{id}`")}))?;
+        .ok_or_else(|| json!({"error": format!("team_git: no agent `{id}`")}))?;
     let meta = entry.meta.read().expect("meta").clone();
     Ok(GitConnectorBundle::cfg(&Value::Object(meta)))
 }
@@ -180,7 +180,7 @@ impl Bundle for GitConnectorBundle {
                     .map(|s| std::path::Path::new(s).is_absolute())
                     .unwrap_or(false);
                 if !ok {
-                    return Some(format!("shift_git: `{key}` must be an absolute path"));
+                    return Some(format!("team_git: `{key}` must be an absolute path"));
                 }
             }
         }
@@ -196,27 +196,27 @@ impl Bundle for GitConnectorBundle {
                         }
                     }
                 }
-                _ => return Some("shift_git: `remote` must be a remote name or a URL".into()),
+                _ => return Some("team_git: `remote` must be a remote name or a URL".into()),
             }
         }
         if let Some(v) = meta.get("default_branch").filter(|v| !v.is_null()) {
             match v.as_str() {
                 Some(s) if !s.is_empty() && !s.starts_with('-') => {}
-                _ => return Some("shift_git: `default_branch` must be a branch name".into()),
+                _ => return Some("team_git: `default_branch` must be a branch name".into()),
             }
         }
         for key in ["username", "ssh_command"] {
             if let Some(v) = meta.get(key).filter(|v| !v.is_null()) {
                 match v.as_str() {
                     Some(s) if !s.is_empty() => {}
-                    _ => return Some(format!("shift_git: `{key}` must be a non-empty string")),
+                    _ => return Some(format!("team_git: `{key}` must be a non-empty string")),
                 }
             }
         }
         if let Some(v) = meta.get("timeout_s").filter(|v| !v.is_null()) {
             let ok = !v.is_boolean() && v.as_u64().map(|n| n > 0).unwrap_or(false);
             if !ok {
-                return Some("shift_git: `timeout_s` must be a positive int".into());
+                return Some("team_git: `timeout_s` must be a positive int".into());
             }
         }
         // Checked on the MERGED record: record plus meta.
@@ -226,7 +226,7 @@ impl Bundle for GitConnectorBundle {
         };
         if set("author_name") != set("author_email") {
             return Some(
-                "shift_git: `author_name` and `author_email` go together — set both or neither"
+                "team_git: `author_name` and `author_email` go together — set both or neither"
                     .into(),
             );
         }
@@ -279,7 +279,7 @@ impl Bundle for GitConnectorBundle {
                 Ok(v) | Err(v) => v,
             },
             other => {
-                let mut r = refusal(UNHANDLED, format!("shift_git: unknown type '{other}'"));
+                let mut r = refusal(UNHANDLED, format!("team_git: unknown type '{other}'"));
                 with(&mut r, "verb", json!(other));
                 r
             }

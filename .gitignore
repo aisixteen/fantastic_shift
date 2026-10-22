@@ -2,3 +2,4 @@
 .fantastic/
 *.pem
 .env
+.cargo/config.toml

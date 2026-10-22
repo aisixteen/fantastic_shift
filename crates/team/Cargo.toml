@@ -1,0 +1,33 @@
+[package]
+name = "fantastic-team"
+description = "AISixteen Fantastic Team: unattended team work on fantastic — the program."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fantastic_team"
+path = "src/main.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+fantastic-tui.workspace = true
+fantastic-kernel.workspace = true
+fantastic-bundle.workspace = true
+fantastic-core.workspace = true
+fantastic-file.workspace = true
+fantastic-ram-store.workspace = true
+fantastic-exec-bridge.workspace = true
+team-git-connector = { path = "../git_connector" }
+team-github-connector = { path = "../github_connector" }
+tokio.workspace = true
+async-trait.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+fantastic-team-secrets-guard = { path = "../secrets_guard" }

@@ -1,0 +1,66 @@
+name: Bug report
+description: Something in the team (the headless binary, a connector, the web UI, the app) is broken.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **Not for security issues** — those go through
+        [private vulnerability reporting](../../security/advisories/new), see SECURITY.md.
+        **Never paste a key or token** (API keys, the GitHub App key, installation tokens).
+  - type: dropdown
+    id: part
+    attributes:
+      label: Part(s)
+      multiple: true
+      options:
+        - headless binary (fantastic_team)
+        - workers / lead (directives, the queue, claims)
+        - git connector
+        - github connector (the GitHub App)
+        - remote runner / tunnel
+        - web UI (--port)
+        - app (Tauri wrapper)
+        - worker packs
+        - docs
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      placeholder: "e.g. v0.1.0, or commit abc1234; and the fantastic version it was built on"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you observed, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Commands, the relevant part of team.yaml (no keys), and what the workers were doing.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / reflect output
+      description: Relevant log lines or `reflect` output. Redact secrets.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: This is not a security vulnerability (those use private reporting).
+          required: true
+        - label: Nothing I pasted contains a key or token.
+          required: true
+        - label: I searched existing issues.
+          required: true

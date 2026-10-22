@@ -1,0 +1,45 @@
+[workspace]
+resolver = "2"
+members = ["crates/team", "crates/secrets_guard", "crates/git_connector", "crates/github_connector"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/aisixteen/fantastic_team"
+
+[workspace.dependencies]
+# fantastic, followed by BRANCH `main`; Cargo.lock pins the exact commit. ONE fantastic version: every
+# fantastic crate below names the same git URL and branch, and fantastic-tui (the terminal shell as a
+# library, aisixteen/fantastic#267) pulls its own crates from that same repository, so Cargo resolves
+# them to one commit. Update them all at once with scripts/update-fantastic.sh.
+#
+# Modes (one fantastic version in every mode):
+#   1. semver (default target): once fantastic publishes releases to crates.io, each line
+#      above becomes `fantastic-kernel = "0.x.y"` (same for every fantastic crate). Not yet:
+#      `cargo search fantastic-kernel` finds nothing, so the git lines stay active. A missing
+#      crate would break the build.
+#   2. git branch main (today): the lines above, pinned by Cargo.lock.
+#   3. local checkout: copy .cargo/config.toml.example to .cargo/config.toml (uncommitted).
+fantastic-tui = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
+fantastic-kernel = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
+fantastic-bundle = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
+fantastic-exec-bridge = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
+tokio = { version = "1", features = ["full"] }
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+fantastic-ai-core = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
+fantastic-core = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
+fantastic-file = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
+fantastic-credential-store = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
+fantastic-ram-store = { git = "https://github.com/aisixteen/fantastic", branch = "main" }
+async-trait = "0.1"
+tempfile = "3"
+base64 = "0.22"
+
+# RSA key generation in tests (github connector) is slow unoptimised.
+[profile.dev.package.num-bigint-dig]
+opt-level = 3
+
+[profile.dev.package.rsa]
+opt-level = 3

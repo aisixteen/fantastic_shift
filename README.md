@@ -71,7 +71,7 @@ Results can stay as files in the shift's folder. When work belongs somewhere els
 | `fantastic_shift` | The program: a headless fantastic host plus the agents below. `--canvas` adds fantastic's browser canvas to watch the shift. |
 | the shifter | An AI agent configured in `shift.yaml`: its model, its directive, the worker templates it may spawn. |
 | `queue` agent | Tasks as data: add, list, take, mark done — the shifter's tool. |
-| connectors | `git`, `github` (optional): bound in `shift.yaml`, each with its directive. |
+| connectors | `git` (`shift_git.tools`: worktrees, commits, pushes to any remote; never the default branch, never a force), `github` (optional): bound in `shift.yaml`, each with its directive. |
 | `shift.yaml` | The shifter, the worker templates (any backend, any model), the connectors and their directives, the task source. |
 | task templates | How to write a task that a worker can carry out alone. |
 

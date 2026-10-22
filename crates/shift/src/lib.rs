@@ -15,7 +15,12 @@ pub mod worker_exec;
 /// from fantastic-host; this repo's own bundles (queue, connectors) are added
 /// here as they land.
 pub fn registry() -> BundleRegistry {
-    fantastic_host::default_bundles()
+    let mut reg = fantastic_host::default_bundles();
+    reg.register(
+        shift_git_connector::HANDLER_MODULE,
+        shift_git_connector::GitConnectorBundle,
+    );
+    reg
 }
 
 /// Usage line, printed on `--help` and on bad arguments.
@@ -155,6 +160,8 @@ pub async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+pub mod directives;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -175,6 +182,13 @@ mod tests {
         let names: Vec<&str> = reg.catalog().map(|(n, _)| n).collect();
         assert!(names.contains(&"file_bridge.tools"));
         assert!(names.contains(&"kernel_state.tools"));
+    }
+
+    #[test]
+    fn the_registry_has_the_git_connector() {
+        let reg = registry();
+        let names: Vec<&str> = reg.catalog().map(|(n, _)| n).collect();
+        assert!(names.contains(&"shift_git.tools"));
     }
 
     #[test]

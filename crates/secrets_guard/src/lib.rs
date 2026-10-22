@@ -342,7 +342,12 @@ impl Probe {
 
         // Kernel records.
         search(
-            &self.kernel.save_json().to_string(),
+            &{
+                let rec = self.kernel.save_json();
+                serde_json::from_str::<Value>(&rec)
+                    .map(|v| texts_of(&v))
+                    .unwrap_or(rec)
+            },
             &self.secrets,
             "records",
             "kernel.save_json()",
@@ -444,5 +449,22 @@ mod tests {
             at: "payload #0".into(),
         };
         assert!(format_leaks(&[l]).contains("secret #0 as plain in reply (payload #0)"));
+    }
+
+    #[test]
+    fn a_record_holding_a_secret_with_a_quote_is_found() {
+        let secret = "pa\"ss\\word-1".to_string();
+        let record = json!({"note": secret});
+        let mut found = Vec::new();
+        search(
+            &texts_of(&record),
+            std::slice::from_ref(&secret),
+            "records",
+            "kernel.save_json()",
+            &mut found,
+        );
+        assert!(found
+            .iter()
+            .any(|l| l.secret == 0 && l.channel == "records" && l.form == "plain"));
     }
 }

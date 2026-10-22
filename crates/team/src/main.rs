@@ -11,7 +11,27 @@ use fantastic_team::{is_passthrough, parse_args, register_team, Surface, USAGE};
 /// The kernel runs in the directory it is started in, so `--dir` is a `chdir`
 /// before the shell boots.
 fn main() -> ExitCode {
-    let argv: Vec<String> = std::env::args().skip(1).collect();
+    let raw: Vec<String> = std::env::args().skip(1).collect();
+    let (flags, argv) = match fantastic_team::instructions::parse_flags(&raw) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("fantastic_team: {e}\n{USAGE}");
+            return ExitCode::from(2);
+        }
+    };
+    // No instruction flags at all: the team starts without a first message.
+    let instructions = if flags == fantastic_team::instructions::Flags::default() {
+        None
+    } else {
+        match fantastic_team::instructions::render(&flags) {
+            Ok(text) => Some(text),
+            Err(e) => {
+                eprintln!("fantastic_team: {e}\n{USAGE}");
+                return ExitCode::from(2);
+            }
+        }
+    };
+    let _ = instructions;
     let extras: &[fantastic_tui::Extra] = &[register_team];
 
     // `mcp`, `send`, `readme`: fantastic's own commands, run in this directory.

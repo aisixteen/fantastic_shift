@@ -1,38 +1,67 @@
 # fantastic_shift
 
-Unattended coding shifts on [fantastic](https://github.com/aisixteen/fantastic). A **driver** hands tasks from a **queue** to AI **worker lanes**; each lane works in its own git worktree and hands back a branch ready for review. You review and merge.
+**Unattended work shifts on [fantastic](https://github.com/aisixteen/fantastic).** You queue tasks; a shift of AI workers takes them one by one, does the work on its own, and hands back finished results for you to review. You come back to done work, not to a chat.
 
-- **Any git repository.** Public or private, GitHub or not. The shift only needs a git remote it can push branches to. GitHub (or another forge) is an optional agent that opens pull requests and reads issues.
-- **Any model mix.** Lanes are fantastic AI agents: Anthropic (Haiku, Sonnet, Opus) over the API with your own key, or local models (vLLM / llama.cpp / Strata) on your own GPU. Mix them; compare them.
-- **Built on fantastic's Rust crates.** The `fantastic_shift` binary is a fantastic host: the kernel and fantastic's bundles (AI backends, exec, files, memory, credentials) plus this repo's own bundles. The HTTP canvas is optional.
+It is not only for code. A task is any piece of work that can be described exactly and checked:
+
+| Kind of work | What a task looks like | What comes back |
+|---|---|---|
+| Code | "fix this bug in these files, with these tests" | a branch or pull request, tests passing |
+| Documentation | "write the setup guide for X from these sources" | a document, ready to read |
+| Research | "compare these five tools on price and limits" | a report with sources |
+| Triage | "read these 40 issues, label and summarize each" | labels and comments, a summary |
+| Data | "clean this CSV, flag rows that break these rules" | the cleaned file and a list of flags |
+| Review | "check this PR against our rules" | a review with findings |
+| Translation, ports | "port this module to Python, same behaviour" | the port, with its tests |
 
 ## How a shift runs
 
 ```
- queue (task specs) ──▶ dispatcher ──▶ worker lane (AI agent, own worktree)
-                           ▲                 │  edit · build · test · commit
-                           │                 ▼
-                           └──── done ◀── forge agent: push the branch, open a draft PR
+ your tasks ──▶ queue ──▶ dispatcher ──▶ worker (an AI agent, its own workspace)
+                              ▲               │  read · do the work · check it
+                              │               ▼
+                              └── done ◀── delivery: files · a report · a comment · a branch / PR
+                                              │
+                                              ▼
+                                         you review
 ```
 
-1. A **task** is an exact spec: files and lines to read, the change, the tests, the commands. Specs are written by a strong model or a person; lanes implement them.
-2. The **dispatcher** gives the next task to whichever lane finished, the lane with the fewest tasks first. A lane is busy until the task it was handed writes its own `done`.
-3. A **lane** never holds credentials. It commits locally; pushing and opening a pull request go through the **forge agent**, which enforces the policy (no default branch, no force-push, drafts only) and keeps tokens to itself.
-4. Every request's tokens and cost are logged per lane and per task.
+- **Tasks are exact.** Each says what to read, what to produce, and how to check it. A strong model or a person writes the task; workers carry it out. Exact tasks are what make unattended work reliable — and cheap: small models do them well.
+- **The dispatcher keeps everyone busy.** The next task goes to whichever worker finished, the one with the fewest tasks first. A worker that stops early is pushed on; one that goes off the rails is stopped and its task marked failed, with the reason.
+- **Workers hold no secrets.** They work in their own folder with no credentials. Delivering — pushing a branch, opening a pull request, posting a comment — goes through a delivery agent that owns the credentials and the rules.
+- **Everything is measured.** Each task records its worker, model, time, tokens and cost, so you see what a task really costs and which model is worth it.
 
-## Parts (this repo)
+## Any model, any mix
+
+Workers are fantastic AI agents: Anthropic models (Haiku, Sonnet, Opus) over the API with your own key, or local models (vLLM, llama.cpp, Strata) on your own GPU. Run several at once, mix them, and compare them on the same tasks — speed, cost and quality per task are in the log.
+
+## Delivery: optional, pluggable
+
+Results can stay as files in the shift's folder. When work belongs somewhere else, a delivery agent takes it there:
+
+- **git** — a branch pushed to any remote (SSH or HTTPS), public or private, any host.
+- **GitHub** (optional) — as a GitHub App: draft pull requests, issue comments, labels, reading a task queue from issues. Register your own app with the manifest in this repo; the private key stays in your credential store.
+- more later (GitLab, Gitea, email, a webhook).
+
+## Security model
+
+- Secrets live only in fantastic's credential store (your OS keychain, or an env / file backend in a container). An agent reads a secret when it uses it and never returns, logs or stores it; tests check that no secret appears in any reply, log row or error.
+- Workers run commands with a sandbox home: no forge login, no SSH agent, no access to key files. They cannot deliver anything except through the delivery agents.
+- Delivery agents enforce the rules themselves: no pushes to the default branch, no force-pushes, pull requests as drafts, an allowlist of repositories.
+- You review and merge. A shift never merges.
+
+## What is in this repo
 
 | Part | What it is |
 |---|---|
-| `fantastic_shift` binary | Headless fantastic host: kernel + fantastic bundles + the bundles below. `--canvas [port]` adds the HTTP canvas. |
-| `git` agent | Worktrees, branches, commits, pushes to a plain git remote (SSH or HTTPS). Works for any repository. |
-| `github` agent (optional) | A GitHub App identity: push, draft PRs, read issues, labels, comments, PR status. Key in the credential store. |
-| `queue` agent | The task queue and the dispatcher, as an agent (replaces the station scripts). |
-| lane templates | Records for worker lanes (Haiku, Qwen, …) and the spec template. |
-| `exec` sandbox | Lanes run commands with a sandbox `HOME`: no forge credentials, no SSH agent. |
+| `fantastic_shift` | The program: a headless fantastic host plus the agents below. `--canvas` adds fantastic's browser canvas to watch the shift. |
+| `queue` agent | Tasks and the dispatcher. |
+| `git` and `github` agents | Delivery. |
+| `shift.yaml` | Your workers (models, keys, how many), the delivery, the task source. |
+| task templates | How to write a task that a worker can carry out alone. |
 
 ## Status
 
-Bootstrapping. The work is tracked in this repo's issues; the code is written by fantastic's own lanes from exact specs.
+Being built — by fantastic's own workers, from exact tasks. Progress: the [project board](https://github.com/orgs/aisixteen/projects/2) and the [issues](https://github.com/aisixteen/fantastic_shift/issues).
 
 License: AGPL-3.0-or-later, like fantastic.

@@ -60,7 +60,7 @@ Results can stay as files in the shift's folder. When work belongs somewhere els
 ## Security model
 
 - Secrets live only in fantastic's credential store (your OS keychain, or an env / file backend in a container). An agent reads a secret when it uses it and never returns, logs or stores it; tests check that no secret appears in any reply, log row or error.
-- Workers run commands with a sandbox home: no forge login, no SSH agent, no access to key files. They cannot deliver anything except through the delivery agents.
+- Workers run commands through an exec agent the shift configures (`crates/shift/src/worker_exec.rs`): HOME is a sandbox folder in the shift (no forge login, no git credential helper, no SSH keys), the environment is a fixed list of names (no token, no key, no SSH agent), and forge CLIs (`gh`, `glab`, `hub`, `git push`, …) are refused before they start. That refusal is an early, clear error, not a wall — a shell can spell a command many ways; what makes a push from a worker fail is that no credential is within its reach. It is not an OS sandbox: a worker runs as your user, so run the shift as a separate user or in a container to keep it away from files your user can read (`~/.ssh`, the login keychain).
 - Delivery agents enforce the rules themselves: no pushes to the default branch, no force-pushes, pull requests as drafts, an allowlist of repositories.
 - You review and merge. A shift never merges.
 

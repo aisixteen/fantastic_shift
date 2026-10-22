@@ -8,6 +8,7 @@ MACOSX_DEPLOYMENT_TARGET = "14.0"
 # fantastic-kernel = { path = "../fantastic/src/lib/rust/crates/fantastic-kernel" }
 # fantastic-host = { path = "../fantastic/src/lib/rust/crates/fantastic-host" }
 # fantastic-bundle = { path = "../fantastic/src/lib/rust/crates/fantastic-bundle" }
-fantastic-ai-core = { path = "../fantastic/src/lib/rust/crates/bundles/fantastic-ai-core" }
-fantastic-credential-store = { path = "../fantastic/src/lib/rust/crates/bundles/fantastic-credential-store" }
-fantastic-ram-store = { path = "../fantastic/src/lib/rust/crates/bundles/fantastic-ram-store" }
+# fantastic-exec-bridge = { path = "../fantastic/src/lib/rust/crates/bundles/fantastic-exec-bridge" }
+# fantastic-ai-core = { path = "../fantastic/src/lib/rust/crates/bundles/fantastic-ai-core" }
+# fantastic-credential-store = { path = "../fantastic/src/lib/rust/crates/bundles/fantastic-credential-store" }
+# fantastic-ram-store = { path = "../fantastic/src/lib/rust/crates/bundles/fantastic-ram-store" }

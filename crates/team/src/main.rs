@@ -11,7 +11,14 @@ use fantastic_team::{is_passthrough, parse_args, register_team, Surface, USAGE};
 /// The kernel runs in the directory it is started in, so `--dir` is a `chdir`
 /// before the shell boots.
 fn main() -> ExitCode {
-    let raw: Vec<String> = std::env::args().skip(1).collect();
+    let all: Vec<String> = std::env::args().skip(1).collect();
+    // `--resend-instructions`: send the first agent its instructions again, even
+    // when it already exists. Taken out before the other flags are parsed.
+    let resend = all.iter().any(|a| a == "--resend-instructions");
+    let raw: Vec<String> = all
+        .into_iter()
+        .filter(|a| a != "--resend-instructions")
+        .collect();
     let (flags, argv) = match fantastic_team::instructions::parse_flags(&raw) {
         Ok(p) => p,
         Err(e) => {
@@ -31,7 +38,6 @@ fn main() -> ExitCode {
             }
         }
     };
-    let _ = instructions;
     let extras: &[fantastic_tui::Extra] = &[register_team];
 
     // `mcp`, `send`, `readme`: fantastic's own commands, run in this directory.
@@ -60,6 +66,16 @@ fn main() -> ExitCode {
             args.dir.display()
         );
         return ExitCode::from(2);
+    }
+    // Plan and apply the team's tree from team.yaml, then deliver the rendered
+    // instructions to the first agent when it was just created (or when asked).
+    if let Err(e) = fantastic_team::tree::run_at_start(
+        std::path::Path::new("."),
+        instructions.as_deref(),
+        resend,
+    ) {
+        eprintln!("fantastic_team: {e}");
+        return ExitCode::from(1);
     }
     finish(fantastic_tui::main_with(args.fantastic_args(), extras))
 }

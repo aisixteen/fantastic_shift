@@ -8,6 +8,7 @@
 pub mod cadencer;
 pub mod config;
 pub mod instructions;
+pub mod tree;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

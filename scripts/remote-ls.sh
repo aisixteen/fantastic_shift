@@ -15,12 +15,12 @@ done
 
 # Runs on the box: $1 dir. Prints one word, and the pid when there is one.
 STATUS='cd "$1" 2>/dev/null || { echo nodir; exit 0; }
-[ -f logs/shift.pid ] || { echo never; exit 0; }
-pid=$(cat logs/shift.pid)
+[ -f logs/team.pid ] || { echo never; exit 0; }
+pid=$(cat logs/team.pid)
 if kill -0 "$pid" 2>/dev/null; then echo "running $pid"; exit 0; fi
-if [ -f logs/shift.stopped ]; then echo "stopped $pid"; exit 0; fi
+if [ -f logs/team.stopped ]; then echo "stopped $pid"; exit 0; fi
 b=$(awk "/^btime/ {print \$2}" /proc/stat 2>/dev/null || true)
-m=$(stat -c %Y logs/shift.pid 2>/dev/null || true)
+m=$(stat -c %Y logs/team.pid 2>/dev/null || true)
 if [ -n "$b" ] && [ -n "$m" ] && [ "$m" -lt "$b" ]; then echo "rebooted $pid"; else echo "exited $pid"; fi'
 
 names=

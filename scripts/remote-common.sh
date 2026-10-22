@@ -70,7 +70,7 @@ load_remote() {
     valid_name "$1" || die "bad remote name \`$1\` — use letters, digits, - and _"
     f="$FT_REMOTES/$1"
     [ -f "$f" ] || die "no remote \`$1\` — add it: scripts/remote-add.sh $1 <host>:<dir>"
-    R_NAME=$1 R_HOST= R_DIR= R_BIN=fantastic_shift R_PORT= R_KEYS=
+    R_NAME=$1 R_HOST= R_DIR= R_BIN=fantastic_team R_PORT= R_KEYS=
     while IFS= read -r line || [ -n "$line" ]; do
         case $line in
             host=*) R_HOST=${line#host=} ;;

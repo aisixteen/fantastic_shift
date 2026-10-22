@@ -1,6 +1,6 @@
 #!/bin/sh
-# remote-logs.sh <name> [-f] [-n LINES] [--dry-run] — the shift's log on the box.
-# -f follows it; Ctrl-C stops following (the shift keeps running). Needs no keys.
+# remote-logs.sh <name> [-f] [-n LINES] [--dry-run] — the team's log on the box.
+# -f follows it; Ctrl-C stops following (the team keeps running). Needs no keys.
 set -eu
 PROG=remote-logs
 . "$(dirname "$0")/remote-common.sh"

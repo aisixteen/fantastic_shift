@@ -31,11 +31,11 @@ fi
 
 # Runs on the box: $1 dir, $2 signal name.
 STOP='cd "$1" || exit 3
-[ -f logs/shift.pid ] || { echo "not running (no pid file)" >&2; exit 4; }
-pid=$(cat logs/shift.pid)
+[ -f logs/team.pid ] || { echo "not running (no pid file)" >&2; exit 4; }
+pid=$(cat logs/team.pid)
 kill -0 "$pid" 2>/dev/null || { echo "not running (pid $pid is gone)" >&2; exit 4; }
 kill -s "$2" "$pid" || exit 5
-: >logs/shift.stopped
+: >logs/team.stopped
 echo "$pid"'
 
 cmd=$(remote_cmd "$STOP" "$R_DIR" "$sig")

@@ -8,8 +8,8 @@
 //! reply, an error or a log line. Every string returned passes through `redact`.
 #![deny(missing_docs)]
 
-mod git;
-mod paths;
+pub mod git;
+pub mod paths;
 
 #[cfg(test)]
 mod tests;
@@ -64,15 +64,24 @@ pub(crate) fn record_schema() -> &'static Value {
 }
 
 /// The config of the agent, read from its meta at every call.
-pub(crate) struct Cfg {
+pub struct Cfg {
+    /// Absolute path of the local clone every worktree is made from.
     pub repo_dir: PathBuf,
+    /// Absolute directory every worktree path must be inside.
     pub workspace_root: PathBuf,
+    /// A remote name in `repo_dir`, or a URL.
     pub remote: String,
+    /// The remote's default branch; push refuses it.
     pub default_branch: String,
+    /// The HTTPS user name sent with a token.
     pub username: String,
+    /// Commit author and sign-off `(name, email)`, when both are set.
     pub author: Option<(String, String)>,
+    /// GIT_SSH_COMMAND for SSH remotes.
     pub ssh_command: String,
+    /// Seconds one git command may run.
     pub timeout_s: u64,
+    /// Whether the record names a credential store ref.
     pub has_credentials: bool,
 }
 
@@ -105,6 +114,16 @@ impl GitConnectorBundle {
                 .unwrap_or(false),
         }
     }
+}
+
+/// The config of the git agent `id`, read from its record the way `handle` reads it.
+pub fn cfg_of(kernel: &Kernel, id: &AgentId) -> Result<Cfg, Value> {
+    let entry = kernel
+        .agents
+        .get(id)
+        .ok_or_else(|| json!({"error": format!("shift_git: no agent `{id}`")}))?;
+    let meta = entry.meta.read().expect("meta").clone();
+    Ok(GitConnectorBundle::cfg(&Value::Object(meta)))
 }
 
 /// A refusal reply: `error` text plus the arg that caused it.

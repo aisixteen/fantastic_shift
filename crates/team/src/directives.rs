@@ -12,6 +12,9 @@ pub const WORKER: &str = include_str!("../../../directives/worker.md");
 /// The lead directive shipped with the binary (`directives/lead.md`).
 pub const LEAD: &str = include_str!("../../../directives/lead.md");
 
+/// The issue-keeper directive shipped with the binary (`directives/issue_keeper.md`).
+pub const ISSUE_KEEPER: &str = include_str!("../../../directives/issue_keeper.md");
+
 /// Read a directive file. Its text, or why it cannot be used.
 pub fn load(path: &Path) -> Result<String, String> {
     let text = std::fs::read_to_string(path)
@@ -156,5 +159,20 @@ mod tests {
         assert!(load(&none)
             .unwrap_err()
             .starts_with(&format!("cannot read directive file {}: ", none.display())));
+    }
+
+    #[test]
+    fn issue_keeper_directive_is_listed_and_nonempty() {
+        assert!(!ISSUE_KEEPER.trim().is_empty());
+        assert!(ISSUE_KEEPER.starts_with("# The issue-keeper directive"));
+    }
+
+    #[test]
+    fn issue_keeper_directive_names_never_rules() {
+        let text = ISSUE_KEEPER.to_lowercase();
+        for s in ["never merge", "never close", "never edit", "never create"] {
+            assert!(text.contains(s), "issue-keeper directive lacks '{s}'");
+        }
+        assert!(text.contains("spec"));
     }
 }

@@ -91,7 +91,13 @@ cargo build --release
 
 ## Updating fantastic
 
-fantastic is a git dependency on branch `main` (`fantastic-tui`, the terminal shell as a library, and the kernel and bundle crates, all one version), pinned in `Cargo.lock`. `scripts/update-fantastic.sh` moves to the newest commit and runs the build and tests. `.cargo/config.toml.example` builds against a local checkout.
+fantastic has three modes. Every fantastic crate is one version in every mode.
+
+1. **semver** (target default): once fantastic publishes releases to crates.io, the git lines in the root `Cargo.toml` become `fantastic-* = "0.x.y"`. Not yet: `cargo search fantastic-kernel` finds nothing, so the build stays on mode 2.
+2. **git branch `main`** (today): the git lines in `Cargo.toml`, pinned by `Cargo.lock`. `scripts/update-fantastic.sh` moves all fantastic crates to the newest commit of `main` and runs the build and tests. Then commit the lock file.
+3. **local checkout**: copy `.cargo/config.toml.example` to `.cargo/config.toml`, point its `[patch]` paths at your fantastic clone, build, and delete the copy. The file is git-ignored; never commit it.
+
+Switch from mode 2 to 1 when releases exist: replace the git lines with versions and run `cargo update`. Use mode 3 to test an unreleased fantastic change.
 
 ## Status
 

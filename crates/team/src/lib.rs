@@ -5,8 +5,10 @@
 //! is a thin wrapper around `fantastic_tui::main_with`.
 #![deny(missing_docs)]
 
+pub mod cadencer;
 pub mod config;
 pub mod puller;
+pub mod instructions;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -32,6 +34,10 @@ pub fn register_team(reg: &mut BundleRegistry) {
         team_github_connector::GithubConnectorBundle,
     );
     reg.register(puller::HANDLER_MODULE, puller::PullerBundle);
+    reg.register(
+        cadencer::HANDLER_MODULE,
+        cadencer::CadencerBundle::default(),
+    );
 }
 
 /// A kernel registry for [`start`] (tests, embedding): the bundles the base

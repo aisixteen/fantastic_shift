@@ -45,6 +45,8 @@ pub(crate) async fn dispatch(
         "comment" => comment(id, kernel, cfg, p).await,
         "label" => label(id, kernel, cfg, p).await,
         "pr_status" => pr_status(id, kernel, cfg, p).await,
+        "issue_edit" => issue_edit(id, kernel, cfg, p).await,
+        "project_field_set" => project_field_set(id, kernel, cfg, p).await,
         other => {
             let mut r = refusal(UNHANDLED, format!("team_github: unknown type '{other}'"));
             with(&mut r, "verb", json!(other));
@@ -204,7 +206,10 @@ async fn pr_create(id: &AgentId, kernel: &Arc<Kernel>, cfg: &Cfg, p: &Value) -> 
         if branch == default {
             return Err(base_refusal(branch));
         }
-        let body_text = p.get("body").and_then(|v| v.as_str()).unwrap_or("");
+        let body_text = crate::footer::with_footer(
+            p.get("body").and_then(|v| v.as_str()).unwrap_or(""),
+            p.get("usage"),
+        );
         let payload = json!({
             "title": title,
             "head": branch,
@@ -653,4 +658,179 @@ async fn pr_status(id: &AgentId, kernel: &Arc<Kernel>, cfg: &Cfg, p: &Value) -> 
     }
     .await;
     finish(r, &token)
+}
+
+/// True when line `i` sits under a `## SPEC` heading (until the next `## ` heading).
+fn in_spec_section(lines: &[&str], i: usize) -> bool {
+    let mut spec = false;
+    for l in &lines[..=i] {
+        if let Some(h) = l.strip_prefix("## ") {
+            spec = h.trim() == "SPEC";
+        }
+    }
+    spec
+}
+
+async fn issue_edit(id: &AgentId, kernel: &Arc<Kernel>, cfg: &Cfg, p: &Value) -> Value {
+    const V: &str = "issue_edit";
+    let repo = match repo_arg(p, V, cfg) {
+        Ok(r) => r,
+        Err(e) => return e,
+    };
+    let number = match number_arg(p, V) {
+        Ok(n) => n,
+        Err(e) => return e,
+    };
+    let old = match str_arg(p, V, "old") {
+        Ok(s) => s.to_string(),
+        Err(e) => return e,
+    };
+    let new = match p.get("new").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return missing(V, "new"),
+    };
+    let api = Api::new(cfg);
+    let token = match app::token_for(id, kernel, cfg, &api, V, &repo).await {
+        Ok(t) => t,
+        Err(e) => return e,
+    };
+    let r: Result<Value, Value> = async {
+        let issue = ge(api
+            .call(
+                V,
+                Method::GET,
+                &format!("/repos/{repo}/issues/{number}"),
+                &[],
+                &token,
+                None,
+            )
+            .await)?;
+        let body = issue["body"].as_str().unwrap_or("").to_string();
+        let lines: Vec<&str> = body.split('\n').collect();
+        let hits: Vec<usize> = lines
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| l.trim_end() == old.trim_end())
+            .map(|(i, _)| i)
+            .collect();
+        if hits.is_empty() {
+            return Err(bad(
+                format!("team_github issue_edit: no line of #{number} matches `{old}`"),
+                "old",
+                json!(old),
+            ));
+        }
+        if hits.len() > 1 {
+            return Err(bad(
+                format!(
+                    "team_github issue_edit: {} lines of #{number} match `{old}` — give a unique line",
+                    hits.len()
+                ),
+                "old",
+                json!(old),
+            ));
+        }
+        let i = hits[0];
+        if in_spec_section(&lines, i) {
+            return Err(bad(
+                format!(
+                    "team_github issue_edit: line {} of #{number} is inside a `## SPEC` section — the keeper does not edit specs",
+                    i + 1
+                ),
+                "old",
+                json!(old),
+            ));
+        }
+        let mut out = lines;
+        out[i] = new.as_str();
+        let text = out.join("\n");
+        ge(api
+            .call(
+                V,
+                Method::PATCH,
+                &format!("/repos/{repo}/issues/{number}"),
+                &[],
+                &token,
+                Some(&json!({"body": text})),
+            )
+            .await)?;
+        Ok(json!({"repo": repo, "number": number, "line": i + 1}))
+    }
+    .await;
+    finish(r, &token)
+}
+
+async fn project_field_set(id: &AgentId, kernel: &Arc<Kernel>, cfg: &Cfg, p: &Value) -> Value {
+    const V: &str = "project_field_set";
+    let repo = match repo_arg(p, V, cfg) {
+        Ok(r) => r,
+        Err(e) => return e,
+    };
+    let project = match str_arg(p, V, "project") {
+        Ok(s) => s.to_string(),
+        Err(e) => return e,
+    };
+    let item = match str_arg(p, V, "item") {
+        Ok(s) => s.to_string(),
+        Err(e) => return e,
+    };
+    let field = match str_arg(p, V, "field") {
+        Ok(s) => s.to_string(),
+        Err(e) => return e,
+    };
+    let value = match str_arg(p, V, "value") {
+        Ok(s) => s.to_string(),
+        Err(e) => return e,
+    };
+    let api = Api::new(cfg);
+    let token = match app::token_for(id, kernel, cfg, &api, V, &repo).await {
+        Ok(t) => t,
+        Err(e) => return e,
+    };
+    const MUTATION: &str = "mutation($p: ID!, $i: ID!, $f: ID!, $v: String!) { updateProjectV2ItemFieldValue(input: {projectId: $p, itemId: $i, fieldId: $f, value: {text: $v}}) { projectV2Item { id } } }";
+    let r: Result<Value, Value> = async {
+        let reply = ge(api
+            .call(
+                V,
+                Method::POST,
+                "/graphql",
+                &[],
+                &token,
+                Some(&json!({
+                    "query": MUTATION,
+                    "variables": {"p": project, "i": item, "f": field, "v": value},
+                })),
+            )
+            .await)?;
+        // GraphQL reports failures inside a 200 reply.
+        if reply["errors"].is_array() {
+            return Err(bad(
+                format!("team_github project_field_set: {}", reply["errors"]),
+                "field",
+                json!(field),
+            ));
+        }
+        Ok(json!({"repo": repo, "item": item, "field": field}))
+    }
+    .await;
+    finish(r, &token)
+}
+
+#[cfg(test)]
+mod keeper_tests {
+    use super::*;
+
+    #[test]
+    fn spec_section_is_detected_until_next_heading() {
+        let lines = ["# T", "## SPEC", "- [ ] a", "## Notes", "- [ ] b"];
+        assert!(in_spec_section(&lines, 2));
+        assert!(!in_spec_section(&lines, 4));
+        assert!(!in_spec_section(&lines, 0));
+    }
+
+    #[test]
+    fn issue_edit_refuses_spec_section() {
+        let lines = ["## SPEC", "- [ ] a"];
+        assert!(in_spec_section(&lines, 1));
+    }
 }

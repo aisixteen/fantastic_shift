@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/shift"]
+members = ["crates/shift", "crates/git_connector"]
 
 [workspace.package]
 version = "0.1.0"
@@ -18,3 +18,9 @@ fantastic-bundle = { git = "https://github.com/aisixteen/fantastic", branch = "f
 tokio = { version = "1", features = ["full"] }
 serde_json = "1"
 serde = { version = "1", features = ["derive"] }
+fantastic-ai-core = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
+fantastic-credential-store = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
+fantastic-ram-store = { git = "https://github.com/aisixteen/fantastic", branch = "fix/248-fantastic-host-haiku" }
+async-trait = "0.1"
+tempfile = "3"
+base64 = "0.22"

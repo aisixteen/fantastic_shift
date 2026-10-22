@@ -17,6 +17,7 @@ path = "src/lib.rs"
 fantastic-kernel.workspace = true
 fantastic-host.workspace = true
 fantastic-bundle.workspace = true
+shift-git-connector = { path = "../git_connector" }
 tokio.workspace = true
 serde_json.workspace = true
 serde.workspace = true

@@ -210,19 +210,51 @@ fn comments_of(v: &serde_json::Value) -> Vec<Comment> {
 pub async fn pull(peers: &dyn Peers, cfg: &PullerCfg) -> PullReport {
     let mut report = PullReport::default();
     for repo in &cfg.repos {
-        let listed = peers
+        let file = peers
             .ask(
                 &cfg.github,
-                serde_json::json!({"type": "issues", "repo": repo, "label": LABEL, "state": "open"}),
+                serde_json::json!({"type": "read_file", "repo": repo, "path": crate::repo_config::FILE}),
             )
             .await;
-        let Some(issues) = listed["issues"].as_array() else {
+        if file["not_found"] == serde_json::json!(true) {
             report
                 .skipped
-                .push((repo.clone(), format!("issues: {listed}")));
+                .push((repo.clone(), format!("no {}", crate::repo_config::FILE)));
+            continue;
+        }
+        let Some(text) = file["text"].as_str() else {
+            report
+                .skipped
+                .push((repo.clone(), format!("config: {file}")));
             continue;
         };
-        for issue in issues {
+        let rc = match crate::repo_config::parse(text) {
+            Ok(c) => c,
+            Err(e) => {
+                report.skipped.push((repo.clone(), e));
+                continue;
+            }
+        };
+        let mut issues: Vec<serde_json::Value> = Vec::new();
+        for label in &rc.task_labels {
+            let listed = peers
+                .ask(
+                    &cfg.github,
+                    serde_json::json!({"type": "issues", "repo": repo, "label": label, "state": "open"}),
+                )
+                .await;
+            match listed["issues"].as_array() {
+                Some(a) => issues.extend(a.iter().cloned()),
+                None => report
+                    .skipped
+                    .push((repo.clone(), format!("issues: {listed}"))),
+            }
+        }
+        let mut seen: std::collections::BTreeSet<u64> = std::collections::BTreeSet::new();
+        for issue in &issues {
+            if issue["number"].as_u64().is_some_and(|n| !seen.insert(n)) {
+                continue;
+            }
             let Some(number) = issue["number"].as_u64() else {
                 continue;
             };
@@ -359,6 +391,14 @@ mod tests {
         async fn ask(&self, to: &str, p: serde_json::Value) -> serde_json::Value {
             let kind = p["type"].as_str().unwrap_or("");
             match (to, kind) {
+                ("gh", "read_file") => {
+                    let files = self.files.lock().unwrap();
+                    if files.contains_key("__no_config__") {
+                        serde_json::json!({"not_found": true})
+                    } else {
+                        serde_json::json!({"text": files.get("__team_yaml__").cloned().unwrap_or_default()})
+                    }
+                }
                 ("gh", "issues") => serde_json::json!({"issues": [{"number": 25}]}),
                 ("gh", "issue_view") => serde_json::json!({
                     "comments": [{"author": "maintainer", "body": "## SPEC\ndo it"}]
@@ -461,6 +501,61 @@ mod tests {
         let files = fake.files.lock().unwrap();
         assert_eq!(files.get(state).map(String::as_str), Some("done\n"));
         assert!(!files.contains_key("queue/aisixteen-fantastic_team-25.md"));
+    }
+
+    #[tokio::test]
+    async fn repo_without_config_is_not_served() {
+        let fake = Fake {
+            files: Mutex::new(BTreeMap::from([(
+                "__no_config__".to_string(),
+                String::new(),
+            )])),
+        };
+        let r = pull(&fake, &cfg()).await;
+        assert!(r.created.is_empty(), "{r:?}");
+        assert_eq!(r.skipped.len(), 1, "{r:?}");
+        assert!(r.skipped[0].1.contains("no .github/team.yaml"), "{r:?}");
+        assert!(!fake
+            .files
+            .lock()
+            .unwrap()
+            .keys()
+            .any(|k| k.starts_with("queue/")));
+    }
+
+    #[tokio::test]
+    async fn invalid_config_skips_repo_with_error() {
+        let fake = Fake {
+            files: Mutex::new(BTreeMap::from([(
+                "__team_yaml__".to_string(),
+                "buidl: make\n".to_string(),
+            )])),
+        };
+        let r = pull(&fake, &cfg()).await;
+        assert!(r.created.is_empty(), "{r:?}");
+        assert!(r.skipped[0].1.contains("buidl"), "{r:?}");
+        assert!(!fake
+            .files
+            .lock()
+            .unwrap()
+            .keys()
+            .any(|k| k.starts_with("queue/")));
+    }
+
+    #[tokio::test]
+    async fn puller_uses_configured_labels() {
+        let fake = Fake {
+            files: Mutex::new(BTreeMap::from([(
+                "__team_yaml__".to_string(),
+                "task_labels: [do-it]\n".to_string(),
+            )])),
+        };
+        let r = pull(&fake, &cfg()).await;
+        assert_eq!(
+            r.created,
+            vec!["aisixteen/fantastic_team#25".to_string()],
+            "{r:?}"
+        );
     }
 
     #[tokio::test]

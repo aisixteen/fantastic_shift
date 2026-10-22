@@ -47,12 +47,106 @@ pub(crate) async fn dispatch(
         "pr_status" => pr_status(id, kernel, cfg, p).await,
         "issue_edit" => issue_edit(id, kernel, cfg, p).await,
         "project_field_set" => project_field_set(id, kernel, cfg, p).await,
+        "read_file" => read_file(id, kernel, cfg, p).await,
         other => {
             let mut r = refusal(UNHANDLED, format!("team_github: unknown type '{other}'"));
             with(&mut r, "verb", json!(other));
             r
         }
     }
+}
+
+/// Read one file through the Contents API. Returns `{repo, path, ref?, text}`,
+/// or `{repo, path, not_found: true}` when GitHub has no such file at that ref.
+async fn read_file(id: &AgentId, kernel: &Arc<Kernel>, cfg: &Cfg, p: &Value) -> Value {
+    const V: &str = "read_file";
+    let repo = match repo_arg(p, V, cfg) {
+        Ok(r) => r,
+        Err(e) => return e,
+    };
+    let path = match str_arg(p, V, "path") {
+        Ok(s) => s.to_string(),
+        Err(e) => return e,
+    };
+    if path.starts_with('/') || path.split('/').any(|seg| seg.is_empty() || seg == "..") {
+        return bad(
+            "team_github read_file: `path` must be relative, with no empty or `..` segments".into(),
+            "path",
+            json!(path),
+        );
+    }
+    let git_ref = p
+        .get("ref")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    let api = Api::new(cfg);
+    let token = match app::token_for(id, kernel, cfg, &api, V, &repo).await {
+        Ok(t) => t,
+        Err(e) => return e,
+    };
+    let encoded: String = path
+        .split('/')
+        .map(pct)
+        .collect::<Vec<_>>()
+        .join("/");
+    let mut q: Vec<(&str, String)> = Vec::new();
+    if let Some(r) = &git_ref {
+        q.push(("ref", r.clone()));
+    }
+    let r: Result<Value, Value> = async {
+        match api
+            .call(
+                V,
+                Method::GET,
+                &format!("/repos/{repo}/contents/{encoded}"),
+                &q,
+                &token,
+                None,
+            )
+            .await
+        {
+            Ok(v) => {
+                let raw = v["content"].as_str().unwrap_or("");
+                let cleaned: String = raw.chars().filter(|c| !c.is_whitespace()).collect();
+                let bytes = match v["encoding"].as_str() {
+                    Some("base64") => {
+                        use base64::Engine;
+                        base64::engine::general_purpose::STANDARD
+                            .decode(cleaned.as_bytes())
+                            .map_err(|_| {
+                                bad(
+                                    format!("team_github {V}: `{path}` is not valid base64 in GitHub's answer"),
+                                    "path",
+                                    json!(path),
+                                )
+                            })?
+                    }
+                    _ => return Err(bad(
+                        format!("team_github {V}: `{path}` has no base64 content (a directory or a link?)"),
+                        "path",
+                        json!(path),
+                    )),
+                };
+                let text = String::from_utf8(bytes).map_err(|_| {
+                    bad(
+                        format!("team_github {V}: `{path}` is not UTF-8 text"),
+                        "path",
+                        json!(path),
+                    )
+                })?;
+                let mut out = json!({"repo": repo, "path": path, "text": text});
+                if let Some(r) = &git_ref {
+                    out["ref"] = json!(r);
+                }
+                Ok(out)
+            }
+            Err((404, _)) => Ok(json!({"repo": repo, "path": path, "not_found": true})),
+            Err((_, v)) => Err(v),
+        }
+    }
+    .await;
+    finish(r, &token)
 }
 
 fn ge(r: Result<Value, (u16, Value)>) -> Result<Value, Value> {

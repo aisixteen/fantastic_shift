@@ -659,6 +659,19 @@ dependencies = [
  "fantastic-bundle",
  "fantastic-host",
  "fantastic-kernel",
+ "fantastic-shift-secrets-guard",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "fantastic-shift-secrets-guard"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "fantastic-kernel",
  "serde_json",
  "tempfile",
  "tokio",

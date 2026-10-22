@@ -13,6 +13,7 @@ pub mod instructions;
 pub mod puller;
 pub mod setup_github;
 pub mod tree;
+pub mod worker_view;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -39,13 +40,14 @@ pub fn register_team(reg: &mut BundleRegistry) {
     );
     reg.register(puller::HANDLER_MODULE, puller::PullerBundle);
     reg.register(board::HANDLER_MODULE, board::BoardBundle);
-    reg.register(
-        dispatcher::HANDLER_MODULE,
-        dispatcher::DispatcherBundle,
-    );
+    reg.register(dispatcher::HANDLER_MODULE, dispatcher::DispatcherBundle);
     reg.register(
         cadencer::HANDLER_MODULE,
         cadencer::CadencerBundle::default(),
+    );
+    reg.register(
+        worker_view::HANDLER_MODULE,
+        worker_view::WorkerViewBundle::default(),
     );
 }
 

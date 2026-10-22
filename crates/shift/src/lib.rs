@@ -139,6 +139,8 @@ pub async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+pub mod directives;
+
 #[cfg(test)]
 mod tests {
     use super::*;

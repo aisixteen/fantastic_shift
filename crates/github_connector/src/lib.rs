@@ -15,6 +15,7 @@
 
 mod api;
 mod app;
+mod footer;
 mod push;
 mod verbs;
 

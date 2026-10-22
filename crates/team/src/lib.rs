@@ -64,6 +64,10 @@ pub fn registry() -> BundleRegistry {
     reg
 }
 
+/// The README for AIs (`docs/ai-readme.md`), built into the binary. It is printed
+/// by `fantastic_team ai-readme`.
+pub const AI_README: &str = include_str!("../../../docs/ai-readme.md");
+
 /// Usage text, printed on `--help` and on bad arguments.
 pub const USAGE: &str = "usage: fantastic_team [--dir PATH] [--port N | --tui]\n  no surface flag: fully headless (no port, no terminal UI)\n  --port N: serve the web UI on 127.0.0.1:N\n  --tui: the terminal UI (needs a terminal)\n  (`mcp`, `send` and `readme` as the first word run fantastic's own commands)";
 

@@ -12,6 +12,16 @@ use fantastic_team::{is_passthrough, parse_args, register_team, Surface, USAGE};
 /// before the shell boots.
 fn main() -> ExitCode {
     let all: Vec<String> = std::env::args().skip(1).collect();
+    // `setup github`: handles its own arguments, then exits.
+    if all.first().map(String::as_str) == Some("setup") {
+        return match fantastic_team::setup_github::run_cli(&all[1..]) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("fantastic_team: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
     // `ai-readme`: print the README for AIs and stop. No flags, no team.
     if all.first().map(String::as_str) == Some("ai-readme") {
         print!("{}", fantastic_team::AI_README);

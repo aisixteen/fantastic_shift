@@ -984,6 +984,7 @@ dependencies = [
  "fantastic-team-secrets-guard",
  "fantastic-tui",
  "hmac",
+ "reqwest",
  "serde",
  "serde_json",
  "sha2",
@@ -991,6 +992,7 @@ dependencies = [
  "team-github-connector",
  "tempfile",
  "tokio",
+ "wiremock",
 ]
 
 [[package]]

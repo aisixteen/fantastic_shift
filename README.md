@@ -59,7 +59,7 @@ Results can stay as files in the shift's folder. When work belongs somewhere els
 
 ## Security model
 
-- Secrets live only in fantastic's credential store (your OS keychain, or an env / file backend in a container). An agent reads a secret when it uses it and never returns, logs or stores it; tests check that no secret appears in any reply, log row or error.
+- Secrets live only in fantastic's credential store (your OS keychain, or an env / file backend in a container). An agent reads a secret when it uses it and never returns, logs or stores it; tests check that no secret appears in any reply, error, event, store row, record or log file (`crates/secrets_guard`, used by every agent crate here). `scripts/check-secrets.sh` fails when a tracked or new file holds a private key or a GitHub / Anthropic token — run it before you commit.
 - Workers run commands with a sandbox home: no forge login, no SSH agent, no access to key files. They cannot deliver anything except through the delivery agents.
 - Delivery agents enforce the rules themselves: no pushes to the default branch, no force-pushes, pull requests as drafts, an allowlist of repositories.
 - You review and merge. A shift never merges.

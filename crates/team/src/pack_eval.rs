@@ -42,8 +42,7 @@ pub struct Outcome {
     pub exit_code: i32,
     /// The cost as the executor reports it, if it reports one.
     pub cost: Option<f64>,
-    /// The time the task took, as the executor measured it.
-    pub elapsed: Duration,
+
 }
 
 /// Runs one task. An `Err` becomes an eval failure with that reason.
@@ -278,7 +277,6 @@ mod tests {
             files: Vec::new(),
             exit_code: exit,
             cost,
-            elapsed: Duration::from_millis(10),
         }
     }
 

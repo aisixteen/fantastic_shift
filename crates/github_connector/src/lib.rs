@@ -22,9 +22,9 @@ mod verbs;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
-mod tests_secrets;
-#[cfg(test)]
 mod tests_read_file;
+#[cfg(test)]
+mod tests_secrets;
 
 use std::sync::{Arc, OnceLock};
 

@@ -34,5 +34,6 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 
 [dev-dependencies]
 tempfile = "3"
+tokio = { workspace = true, features = ["test-util", "macros", "rt"] }
 wiremock = "=0.6.5"
 fantastic-team-secrets-guard = { path = "../secrets_guard" }

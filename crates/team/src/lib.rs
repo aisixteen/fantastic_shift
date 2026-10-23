@@ -6,17 +6,21 @@
 #![deny(missing_docs)]
 
 pub mod board;
+pub mod cadence_feed;
 pub mod cadencer;
 pub mod config;
 pub mod dispatcher;
+pub mod driver;
+pub mod driver_config;
+pub mod driver_rules;
 pub mod instructions;
 pub mod pack_scan;
 pub mod puller;
 pub mod repo_config;
 pub mod setup_github;
 pub mod tree;
-pub mod worker_view;
 pub mod webhook;
+pub mod worker_view;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

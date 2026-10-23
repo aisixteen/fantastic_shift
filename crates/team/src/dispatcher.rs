@@ -123,7 +123,11 @@ pub fn connections(names: &[String]) -> Vec<Connection> {
         .iter()
         .map(|n| Connection {
             name: n.clone(),
-            status: if std::env::var(n).is_ok() { "present" } else { "missing" },
+            status: if std::env::var(n).is_ok() {
+                "present"
+            } else {
+                "missing"
+            },
         })
         .collect()
 }
@@ -149,7 +153,14 @@ pub fn control_reply(node: &str, action: &str, confirm: bool) -> Value {
 }
 
 /// Read the tree of a team from its board and its declared groups.
-async fn tree_of(peers: &dyn Peers, board: &str, team: &str, groups: &BTreeMap<String, Vec<String>>, limit: u64, now: u64) -> Value {
+async fn tree_of(
+    peers: &dyn Peers,
+    board: &str,
+    team: &str,
+    groups: &BTreeMap<String, Vec<String>>,
+    limit: u64,
+    now: u64,
+) -> Value {
     let snap = peers.ask(board, json!({"type": "board"})).await;
     let mut ids: Vec<String> = groups.values().flatten().cloned().collect();
     if let Some(agents) = snap["agents"].as_object() {
@@ -169,7 +180,11 @@ fn groups_of(meta: &serde_json::Map<String, Value>) -> BTreeMap<String, Vec<Stri
         for (g, v) in obj {
             let members = v
                 .as_array()
-                .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(str::to_string))
+                        .collect()
+                })
                 .unwrap_or_default();
             out.insert(g.clone(), members);
         }
@@ -236,7 +251,11 @@ impl fantastic_kernel::bundle::Bundle for DispatcherBundle {
             }
             "open" => {
                 let node = payload["node"].as_str().unwrap_or("").to_string();
-                let kind = if groups.contains_key(&node) || node == team { "group" } else { "worker" };
+                let kind = if groups.contains_key(&node) || node == team {
+                    "group"
+                } else {
+                    "worker"
+                };
                 open_target(&node, kind)
             }
             "control" => {
@@ -250,7 +269,10 @@ impl fantastic_kernel::bundle::Bundle for DispatcherBundle {
                 reply
             }
             "place" => {
-                let canvas = payload["canvas"].as_str().unwrap_or("canvas_page").to_string();
+                let canvas = payload["canvas"]
+                    .as_str()
+                    .unwrap_or("canvas_page")
+                    .to_string();
                 peers
                     .ask(&canvas, json!({"type": "create_agent", "id": format!("{agent_id}_view"), "handler_module": "html.tools", "html": HTML}))
                     .await

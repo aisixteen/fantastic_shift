@@ -17,6 +17,9 @@ use fantastic_kernel::{AgentId, Kernel};
 use serde_json::{json, Value};
 use tokio::task::JoinHandle;
 
+use crate::cadence_feed::CostMeter;
+use crate::puller::{KernelPeers, Peers};
+
 /// The handler module name this bundle registers under.
 pub const HANDLER_MODULE: &str = "team_cadencer.tools";
 const NAME: &str = "team_cadencer";
@@ -268,6 +271,9 @@ struct Inner {
     prev: Vec<Node>,
     ticks: u64,
     digests_sent: u64,
+    delivery_errors: u64,
+    meter: CostMeter,
+    peers: Option<Arc<dyn Peers>>,
     last_beat_s: Option<u64>,
     next_beat_s: Option<u64>,
     timer: Option<JoinHandle<()>>,
@@ -293,6 +299,28 @@ fn beat(inner: &mut Inner) -> Vec<Digest> {
     digests
 }
 
+/// Send each digest to its target. A failed send is counted, never fatal.
+/// The lock is not held across the await.
+async fn deliver(shared: &Arc<Mutex<Inner>>, peers: Option<Arc<dyn Peers>>, digests: Vec<Digest>) {
+    for d in digests {
+        let text = d.lines.join("\n");
+        let failed = match &peers {
+            None => true,
+            Some(p) => p
+                .ask(&d.to, json!({"type": "send", "text": text}))
+                .await
+                .get("error")
+                .is_some(),
+        };
+        let mut g = shared.lock().expect("cadencer state");
+        if failed {
+            g.delivery_errors += 1;
+        } else {
+            g.meter.record_digest(now_s(), text.len() as u64);
+        }
+    }
+}
+
 /// Stop the old timer and, when enabled with a cadence, start a new one.
 fn restart_timer(shared: &Arc<Mutex<Inner>>, inner: &mut Inner) {
     if let Some(h) = inner.timer.take() {
@@ -308,8 +336,12 @@ fn restart_timer(shared: &Arc<Mutex<Inner>>, inner: &mut Inner) {
         let mut every = tokio::time::interval_at(tokio::time::Instant::now() + period, period);
         loop {
             every.tick().await;
-            let mut g = shared.lock().expect("cadencer state");
-            beat(&mut g);
+            let (digests, peers) = {
+                let mut g = shared.lock().expect("cadencer state");
+                let digests = beat(&mut g);
+                (digests, g.peers.clone())
+            };
+            deliver(&shared, peers, digests).await;
         }
     }));
     inner.next_beat_s = Some(now_s() + inner.settings.cadence_s);
@@ -348,8 +380,12 @@ fn dispatch(shared: &Arc<Mutex<Inner>>, payload: &Value) -> Value {
             if !allowed(&inner, &str_of(payload, "sender")) {
                 return json!({"error": "team_cadencer: set refused"});
             }
+            let before = (inner.settings.enabled, inner.settings.cadence_s);
             apply_set(&mut inner.settings, payload);
-            restart_timer(shared, &mut inner);
+            if before != (inner.settings.enabled, inner.settings.cadence_s) || !timer_alive(&inner)
+            {
+                restart_timer(shared, &mut inner);
+            }
             settings_json(&inner.settings)
         }
         "status" => json!({
@@ -358,6 +394,9 @@ fn dispatch(shared: &Arc<Mutex<Inner>>, payload: &Value) -> Value {
             "last_beat_s": inner.last_beat_s,
             "next_beat_s": inner.next_beat_s,
             "digests_sent": inner.digests_sent,
+            "delivery_errors": inner.delivery_errors,
+            "digest_bytes_per_hour": inner.meter.status(now_s())["digest_bytes_per_hour"],
+            "driver_tokens_per_hour": inner.meter.status(now_s())["driver_tokens_per_hour"],
         }),
         other => json!({"error": format!("team_cadencer: unknown type '{other}'")}),
     }
@@ -388,8 +427,12 @@ impl Bundle for CadencerBundle {
         &self,
         _agent_id: &AgentId,
         payload: &Value,
-        _kernel: &Arc<Kernel>,
+        kernel: &Arc<Kernel>,
     ) -> Result<Reply, BundleError> {
+        {
+            let mut g = self.inner.lock().expect("cadencer state");
+            g.peers = Some(Arc::new(KernelPeers(kernel.clone())));
+        }
         Ok(Some(dispatch(&self.inner, payload)))
     }
 }
@@ -658,5 +701,110 @@ mod tests {
             s["next_beat_s"].as_u64().unwrap() - s["last_beat_s"].as_u64().unwrap(),
             60
         );
+    }
+
+    struct FakePeers {
+        sent: Arc<Mutex<Vec<(String, String)>>>,
+        fail: bool,
+    }
+
+    #[async_trait::async_trait]
+    impl Peers for FakePeers {
+        async fn ask(&self, to: &str, p: Value) -> Value {
+            if self.fail {
+                return json!({"error": "down"});
+            }
+            let text = p["text"].as_str().unwrap_or("").to_string();
+            self.sent.lock().unwrap().push((to.to_string(), text));
+            json!({"ok": true})
+        }
+    }
+
+    type Sent = Arc<Mutex<Vec<(String, String)>>>;
+
+    fn fake(fail: bool) -> (Sent, Arc<dyn Peers>) {
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let peers: Arc<dyn Peers> = Arc::new(FakePeers {
+            sent: sent.clone(),
+            fail,
+        });
+        (sent, peers)
+    }
+
+    #[tokio::test]
+    async fn a_beat_sends_each_digest_to_its_driver() {
+        let (sent, peers) = fake(false);
+        let tree = vec![
+            n("g1", None, true, "busy", 0),
+            n("w1", Some("g1"), true, "busy", 0),
+        ];
+        let digests = build(&tree, &[], &Settings::default());
+        deliver(&shared(), Some(peers), digests).await;
+        let got = sent.lock().unwrap().clone();
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].0, "g1");
+        assert!(got[0].1.contains("w1"));
+    }
+
+    #[tokio::test]
+    async fn a_beat_with_nothing_changed_sends_nothing() {
+        let (sent, peers) = fake(false);
+        let tree = vec![
+            n("g1", None, true, "busy", 0),
+            n("w1", Some("g1"), true, "busy", 0),
+        ];
+        let digests = build(&tree, &tree, &Settings::default());
+        deliver(&shared(), Some(peers), digests).await;
+        assert!(sent.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_failed_delivery_is_counted_not_fatal() {
+        let (_sent, peers) = fake(true);
+        let b = shared();
+        let digests = vec![Digest {
+            to: "g1".into(),
+            lines: vec!["w1: busy".into()],
+        }];
+        deliver(&b, Some(peers), digests).await;
+        assert_eq!(status(&b)["delivery_errors"], 1);
+        let next = dispatch(&b, &tick_with(0, "x"));
+        assert!(next["sent"].is_number());
+        assert_eq!(status(&b)["ticks"], 1);
+    }
+
+    #[tokio::test]
+    async fn status_shows_digest_bytes_per_hour() {
+        let (_sent, peers) = fake(false);
+        let b = shared();
+        let digests = vec![
+            Digest {
+                to: "g1".into(),
+                lines: vec!["a: x".into()],
+            },
+            Digest {
+                to: "g2".into(),
+                lines: vec!["b: yy".into()],
+            },
+        ];
+        let want: u64 = digests
+            .iter()
+            .map(|d| d.lines.join("\n").len() as u64)
+            .sum();
+        deliver(&b, Some(peers), digests).await;
+        assert_eq!(status(&b)["digest_bytes_per_hour"].as_u64().unwrap(), want);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_set_that_keeps_the_cadence_keeps_the_phase() {
+        let b = shared();
+        dispatch(&b, &json!({"type": "set", "sender": "user", "cadence": 60}));
+        run_for(90).await;
+        let before = status(&b)["next_beat_s"].clone();
+        dispatch(
+            &b,
+            &json!({"type": "set", "sender": "user", "quiet": false}),
+        );
+        assert_eq!(status(&b)["next_beat_s"], before);
     }
 }

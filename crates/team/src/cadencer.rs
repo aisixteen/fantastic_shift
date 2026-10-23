@@ -17,7 +17,7 @@ use fantastic_kernel::{AgentId, Kernel};
 use serde_json::{json, Value};
 use tokio::task::JoinHandle;
 
-use crate::cadence_feed::CostMeter;
+use crate::cadence_feed::{self, CostMeter};
 use crate::puller::{KernelPeers, Peers};
 
 /// The handler module name this bundle registers under.
@@ -274,6 +274,8 @@ struct Inner {
     delivery_errors: u64,
     meter: CostMeter,
     peers: Option<Arc<dyn Peers>>,
+    board: Option<String>,
+    timer_cfg: Option<(bool, u64)>,
     last_beat_s: Option<u64>,
     next_beat_s: Option<u64>,
     timer: Option<JoinHandle<()>>,
@@ -297,6 +299,19 @@ fn beat(inner: &mut Inner) -> Vec<Digest> {
         None
     };
     digests
+}
+
+/// Ask the board for its rows and turn them into the tree shape. `None` when
+/// the board gives no `rows` list.
+async fn read_board(peers: &dyn Peers, board: &str) -> Option<Vec<Node>> {
+    let reply = peers.ask(board, json!({"type": "board"})).await;
+    let rows = reply.get("rows")?.as_array()?;
+    Some(
+        cadence_feed::tree_from_board(rows)
+            .iter()
+            .filter_map(node_from)
+            .collect(),
+    )
 }
 
 /// Send each digest to its target. A failed send is counted, never fatal.
@@ -323,6 +338,7 @@ async fn deliver(shared: &Arc<Mutex<Inner>>, peers: Option<Arc<dyn Peers>>, dige
 
 /// Stop the old timer and, when enabled with a cadence, start a new one.
 fn restart_timer(shared: &Arc<Mutex<Inner>>, inner: &mut Inner) {
+    inner.timer_cfg = Some((inner.settings.enabled, inner.settings.cadence_s));
     if let Some(h) = inner.timer.take() {
         h.abort();
     }
@@ -336,6 +352,15 @@ fn restart_timer(shared: &Arc<Mutex<Inner>>, inner: &mut Inner) {
         let mut every = tokio::time::interval_at(tokio::time::Instant::now() + period, period);
         loop {
             every.tick().await;
+            let (peers, board) = {
+                let g = shared.lock().expect("cadencer state");
+                (g.peers.clone(), g.board.clone())
+            };
+            if let (Some(p), Some(b)) = (peers.as_ref(), board) {
+                if let Some(tree) = read_board(p.as_ref(), &b).await {
+                    shared.lock().expect("cadencer state").tree = tree;
+                }
+            }
             let (digests, peers) = {
                 let mut g = shared.lock().expect("cadencer state");
                 let digests = beat(&mut g);
@@ -359,6 +384,9 @@ fn dispatch(shared: &Arc<Mutex<Inner>>, payload: &Value) -> Value {
     let mut inner = shared.lock().expect("cadencer state");
     match t {
         "configure" => {
+            if let Some(b) = payload.get("board").and_then(|v| v.as_str()) {
+                inner.board = Some(b.to_string());
+            }
             if let Some(p) = payload.get("parent").and_then(|v| v.as_str()) {
                 inner.parent = Some(p.to_string());
             }
@@ -380,10 +408,9 @@ fn dispatch(shared: &Arc<Mutex<Inner>>, payload: &Value) -> Value {
             if !allowed(&inner, &str_of(payload, "sender")) {
                 return json!({"error": "team_cadencer: set refused"});
             }
-            let before = (inner.settings.enabled, inner.settings.cadence_s);
             apply_set(&mut inner.settings, payload);
-            if before != (inner.settings.enabled, inner.settings.cadence_s) || !timer_alive(&inner)
-            {
+            let want = (inner.settings.enabled, inner.settings.cadence_s);
+            if inner.timer_cfg != Some(want) {
                 restart_timer(shared, &mut inner);
             }
             settings_json(&inner.settings)
@@ -806,5 +833,41 @@ mod tests {
             &json!({"type": "set", "sender": "user", "quiet": false}),
         );
         assert_eq!(status(&b)["next_beat_s"], before);
+    }
+
+    struct BoardPeers {
+        sent: Arc<Mutex<Vec<(String, String)>>>,
+    }
+
+    #[async_trait::async_trait]
+    impl Peers for BoardPeers {
+        async fn ask(&self, to: &str, p: Value) -> Value {
+            if p["type"] == "board" {
+                return json!({"rows": [
+                    {"id": "g1", "parent": null, "has_ai": true, "state": "busy", "task": "x"},
+                    {"id": "w1", "parent": "g1", "has_ai": true, "state": "busy", "task": "build", "idle_s": 0}
+                ]});
+            }
+            let text = p["text"].as_str().unwrap_or("").to_string();
+            self.sent.lock().unwrap().push((to.to_string(), text));
+            json!({"ok": true})
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_beat_reads_the_board_when_configured() {
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        let b = shared();
+        {
+            let mut g = b.lock().unwrap();
+            g.peers = Some(Arc::new(BoardPeers { sent: sent.clone() }));
+            g.board = Some("board".into());
+        }
+        dispatch(&b, &json!({"type": "set", "sender": "user", "cadence": 60}));
+        run_for(60).await;
+        let got = sent.lock().unwrap().clone();
+        assert!(got
+            .iter()
+            .any(|(to, text)| to == "g1" && text.contains("w1")));
     }
 }

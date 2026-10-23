@@ -14,8 +14,8 @@ pub mod puller;
 pub mod repo_config;
 pub mod setup_github;
 pub mod tree;
-pub mod worker_view;
 pub mod webhook;
+pub mod worker_view;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -264,6 +264,7 @@ async fn boot_kernel(kernel: &Arc<Kernel>) -> Result<(), String> {
 }
 
 pub mod directives;
+pub mod pack_registry;
 
 #[cfg(test)]
 mod tests {

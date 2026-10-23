@@ -1,0 +1,22 @@
+[package]
+name = "fantastic-team-app"
+description = "AISixteen Fantastic Team app: a thin window over the headless binary's --port web UI (#37)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "fantastic_team_app"
+path = "src/main.rs"
+
+[dependencies]
+tokio.workspace = true
+tauri = { version = "2", optional = true }
+
+[features]
+default = []
+tauri = ["dep:tauri"]

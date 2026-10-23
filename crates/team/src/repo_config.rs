@@ -88,10 +88,7 @@ pub fn parse(text: &str) -> Result<RepoConfig, String> {
 
     let (approvals, approvers) = match raw.review {
         None => (1, Vec::new()),
-        Some(r) => (
-            r.approvals.unwrap_or(1),
-            r.approvers.unwrap_or_default(),
-        ),
+        Some(r) => (r.approvals.unwrap_or(1), r.approvers.unwrap_or_default()),
     };
     if approvals == 0 {
         return Err("team.yaml: review.approvals must be at least 1".into());

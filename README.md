@@ -101,6 +101,8 @@ cargo build --release
 
 `--port` and `--tui` are the only surfaces and are not combined; `mcp`, `send` and `readme` as the first word run fantastic's own commands in the current directory. Ctrl-C to stop. fantastic is a pinned git dependency. On macOS the build needs `MACOSX_DEPLOYMENT_TARGET=14.0` (fantastic's Swift bridge targets macOS 14); `.cargo/config.toml.example` sets it under `[env]`.
 
+The build packs fantastic's canvas page with a pinned esbuild. With no vendored binary it compiles esbuild itself, which needs Go 1.21 or newer on PATH.
+
 ## Updating fantastic
 
 fantastic has three modes. Every fantastic crate is one version in every mode.

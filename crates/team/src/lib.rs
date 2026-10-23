@@ -7,9 +7,13 @@
 
 pub mod app_control;
 pub mod board;
+pub mod cadence_feed;
 pub mod cadencer;
 pub mod config;
 pub mod dispatcher;
+pub mod driver;
+pub mod driver_config;
+pub mod driver_rules;
 pub mod instructions;
 pub mod puller;
 pub mod repo_config;

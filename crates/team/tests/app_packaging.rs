@@ -31,19 +31,12 @@ fn bundle_targets_cover_three_desktop_platforms() {
         .iter()
         .map(|t| t.as_str().unwrap_or_default().to_string())
         .collect();
-    let has_any = |names: &[&str]| names.iter().any(|n| targets.iter().any(|t| t == n));
-    assert!(
-        has_any(&["app", "dmg"]),
-        "macOS target missing: {targets:?}"
-    );
-    assert!(
-        has_any(&["msi", "nsis"]),
-        "Windows target missing: {targets:?}"
-    );
-    assert!(
-        has_any(&["deb", "appimage"]),
-        "Linux target missing: {targets:?}"
-    );
+    for required in ["app", "dmg", "msi", "nsis", "deb", "appimage"] {
+        assert!(
+            targets.iter().any(|t| t == required),
+            "bundle target missing: {required} (targets: {targets:?})"
+        );
+    }
 }
 
 #[test]
@@ -115,8 +108,13 @@ fn csp_has_no_unsafe_inline_and_one_port() {
         "CSP allows unsafe-inline: {csp}"
     );
     assert!(!csp.contains(":*"), "CSP has a wildcard port: {csp}");
+    let dist = conf["build"]["frontendDist"]
+        .as_str()
+        .expect("build.frontendDist is a string");
+    let port = dist.rsplit(':').next().expect("frontendDist has a port");
+    let expected = format!("connect-src 'self' http://127.0.0.1:{port} ws://127.0.0.1:{port}");
     assert!(
-        csp.contains("connect-src 'self' http://127.0.0.1:8765 ws://127.0.0.1:8765"),
-        "connect-src is not limited to the one port: {csp}"
+        csp.contains(&expected),
+        "connect-src is not limited to the frontendDist port {port}: {csp}"
     );
 }

@@ -14,6 +14,13 @@ pub mod driver;
 pub mod driver_config;
 pub mod driver_rules;
 pub mod instructions;
+pub mod pack_listing;
+pub mod pack_record;
+pub mod peers;
+pub mod peer_envelope;
+pub mod pack_eval;
+pub mod pack_manifest;
+pub mod pack_scan;
 pub mod puller;
 pub mod repo_config;
 pub mod setup_github;
@@ -45,6 +52,7 @@ pub fn register_team(reg: &mut BundleRegistry) {
         team_github_connector::GithubConnectorBundle,
     );
     reg.register(puller::HANDLER_MODULE, puller::PullerBundle);
+    reg.register(pack_listing::HANDLER_MODULE, pack_listing::ListingBundle);
     reg.register(webhook::HANDLER_MODULE, webhook::WebhookBundle);
     reg.register(board::HANDLER_MODULE, board::BoardBundle);
     reg.register(dispatcher::HANDLER_MODULE, dispatcher::DispatcherBundle);

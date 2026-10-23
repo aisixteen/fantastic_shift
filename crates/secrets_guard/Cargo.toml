@@ -1,6 +1,6 @@
 [package]
 name = "fantastic-team-secrets-guard"
-description = "Test helper: proves no secret leaves an agent — not in a reply, an error, an event, a store row, a record or a file."
+description = "Proves no secret leaves an agent — not in a reply, an error, an event, a store row, a record or a file (test helper) — and scans text for secret-looking tokens and private-key headers (used by the team's pack scan)."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

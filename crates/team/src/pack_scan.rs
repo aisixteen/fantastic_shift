@@ -30,11 +30,13 @@ fn is_directive_or_template(path: &str) -> bool {
 }
 
 fn is_code(path: &str) -> bool {
-    let ext_hit = path
-        .rsplit_once('.')
-        .map(|(_, ext)| CODE_EXTS.contains(&ext))
-        .unwrap_or(false);
-    ext_hit || path.starts_with("bin/") || path.contains("/bin/")
+    let ext = path.rsplit_once('.').map(|(_, e)| e).unwrap_or("");
+    if CODE_EXTS.contains(&ext) {
+        return true;
+    }
+    // Documentation under a bin/ folder is not an executable.
+    let doc = matches!(ext, "md" | "txt" | "yaml" | "yml" | "json" | "toml");
+    !doc && (path.starts_with("bin/") || path.contains("/bin/"))
 }
 
 /// A line holds a secret-looking token: a known prefix followed by enough
@@ -54,44 +56,65 @@ fn has_secret(line: &str) -> bool {
     })
 }
 
+/// Split a line into clauses, so a negation only covers its own clause.
+fn clauses(lower: &str) -> Vec<&str> {
+    lower
+        .split([',', ';', '.', '!', '?'])
+        .flat_map(|c| c.split(" but "))
+        .collect()
+}
+
 /// Negated mentions ("never ask for keys") are documentation, not requests.
-fn is_negated(lower: &str) -> bool {
+fn is_negated(clause: &str) -> bool {
     ["never", "don't", "do not", "must not", "not ask"]
         .iter()
-        .any(|n| lower.contains(n))
+        .any(|n| clause.contains(n))
 }
 
+/// True when some clause asks for a key and is not negated itself.
 fn asks_for_key(lower: &str) -> bool {
-    let subject = ["api key", "token", "password", "secret key", "credentials"]
+    clauses(lower).iter().any(|c| {
+        let subject = ["api key", "token", "password", "secret key", "credentials"]
+            .iter()
+            .any(|s| c.contains(s));
+        let verb = [
+            "send me",
+            "paste",
+            "provide",
+            "share",
+            "give me",
+            "enter your",
+        ]
         .iter()
-        .any(|s| lower.contains(s));
-    let verb = [
-        "send me",
-        "paste",
-        "provide",
-        "share",
-        "give me",
-        "enter your",
+        .any(|v| c.contains(v));
+        subject && verb && !is_negated(c)
+    })
+}
+
+/// Credential paths written as paths, so prose that mentions "id_rsa" is not flagged.
+fn reads_ssh(lower: &str) -> bool {
+    [
+        "~/.ssh/",
+        ".ssh/id_",
+        "~/.aws/credentials",
+        "~/.netrc",
+        "/.netrc",
     ]
     .iter()
-    .any(|v| lower.contains(v));
-    subject && verb && !is_negated(lower)
+    .any(|p| lower.contains(p))
 }
 
-fn reads_ssh(lower: &str) -> bool {
-    ["~/.ssh", ".ssh/", "id_rsa", ".aws/credentials", ".netrc"]
-        .iter()
-        .any(|p| lower.contains(p))
-}
-
+/// Sending data out: an upload verb and a destination in the same clause, not negated.
 fn sends_data_out(lower: &str) -> bool {
-    let target = ["http://", "https://", "webhook", "email", "mailto:"]
-        .iter()
-        .any(|t| lower.contains(t));
-    let action = ["post ", "upload", "curl ", "send ", "forward"]
-        .iter()
-        .any(|a| lower.contains(a));
-    target && action && !is_negated(lower)
+    clauses(lower).iter().any(|c| {
+        let target = ["http://", "https://", "webhook", "mailto:"]
+            .iter()
+            .any(|t| c.contains(t));
+        let action = ["post the", "post it", "upload", "curl ", "forward"]
+            .iter()
+            .any(|a| c.contains(a));
+        target && action && !is_negated(c)
+    })
 }
 
 /// Scan every file of a pack. `files` is (path, bytes), paths relative to the pack root.
@@ -219,5 +242,38 @@ mod tests {
             "Never ask for keys or tokens from the user.\n",
         );
         assert!(r.findings.is_empty());
+    }
+
+    #[test]
+    fn negation_covers_only_its_own_clause() {
+        let r = one(
+            "directives/x.md",
+            "Never reveal the design. Please paste your API token here.\n",
+        );
+        assert!(r.findings.iter().any(|f| f.rule == "asks_for_key"));
+    }
+
+    #[test]
+    fn a_documentation_file_under_bin_is_not_code() {
+        let r = one("templates/x/bin/README.md", "How the tool works.\n");
+        assert!(!r.refused);
+    }
+
+    #[test]
+    fn prose_mentioning_send_and_a_url_is_not_flagged() {
+        let r = one(
+            "directives/x.md",
+            "Send a status line when done. See https://example.com/docs for context.\n",
+        );
+        assert!(!r.findings.iter().any(|f| f.rule == "sends_data_out"));
+    }
+
+    #[test]
+    fn prose_mentioning_id_rsa_is_not_flagged() {
+        let r = one(
+            "directives/x.md",
+            "Background: the id_rsa format is older than ed25519.\n",
+        );
+        assert!(!r.findings.iter().any(|f| f.rule == "reads_ssh"));
     }
 }

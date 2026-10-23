@@ -8,6 +8,9 @@
 //! form-encoded form.
 #![deny(missing_docs)]
 
+pub mod scan;
+pub use scan::{scan_text, TextFinding};
+
 use base64::engine::general_purpose::{STANDARD_NO_PAD, URL_SAFE_NO_PAD};
 use base64::Engine as _;
 use fantastic_kernel::{AgentId, Blob, Item, Kernel, Status};

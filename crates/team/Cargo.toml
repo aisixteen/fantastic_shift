@@ -14,6 +14,7 @@ path = "src/main.rs"
 path = "src/lib.rs"
 
 [dependencies]
+fantastic-team-secrets-guard = { path = "../secrets_guard" }
 fantastic-tui.workspace = true
 fantastic-kernel.workspace = true
 fantastic-bundle.workspace = true
@@ -37,4 +38,3 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 tempfile = "3"
 tokio = { workspace = true, features = ["test-util", "macros", "rt"] }
 wiremock = "=0.6.5"
-fantastic-team-secrets-guard = { path = "../secrets_guard" }

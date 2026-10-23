@@ -45,7 +45,9 @@ async fn read_file_passes_ref_as_query() {
         .mount(&f.gh)
         .await;
     let r = f
-        .call(json!({"type": "read_file", "repo": "acme/widgets", "path": "team.yaml", "ref": "dev"}))
+        .call(
+            json!({"type": "read_file", "repo": "acme/widgets", "path": "team.yaml", "ref": "dev"}),
+        )
         .await;
     assert_eq!(r["text"], "x\n", "{r}");
     assert_eq!(r["ref"], "dev");

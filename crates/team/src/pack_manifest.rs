@@ -167,8 +167,11 @@ impl Manifest {
             ));
         }
         self.port_list()?;
-        for f in &self.files {
+        for (i, f) in self.files.iter().enumerate() {
             check_relative(f)?;
+            if self.files[..i].contains(f) {
+                return Err(format!("listed file `{f}` is duplicated"));
+            }
         }
         Ok(())
     }
@@ -194,6 +197,9 @@ fn looks_like_key(s: &str) -> bool {
 fn check_relative(f: &str) -> Result<(), String> {
     if f.trim().is_empty() {
         return Err("a listed file is empty".to_string());
+    }
+    if f.contains('\\') {
+        return Err(format!("listed file `{f}` must not use backslashes"));
     }
     let p = Path::new(f);
     if p.is_absolute()
@@ -313,6 +319,18 @@ mod tests {
     #[test]
     fn a_path_with_dotdot_is_refused() {
         let m = Manifest::parse(&FULL.replace("README.md", "../secrets.txt")).unwrap();
+        assert!(m.validate().is_err());
+    }
+
+    #[test]
+    fn a_path_with_a_backslash_is_refused() {
+        let m = Manifest::parse(&FULL.replace("README.md", "..\\x")).unwrap();
+        assert!(m.validate().is_err());
+    }
+
+    #[test]
+    fn a_duplicated_file_entry_is_refused() {
+        let m = Manifest::parse(&FULL.replace("README.md", "src/lib.rs")).unwrap();
         assert!(m.validate().is_err());
     }
 }

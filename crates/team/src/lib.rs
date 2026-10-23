@@ -55,6 +55,7 @@ pub fn register_team(reg: &mut BundleRegistry) {
     reg.register(pack_listing::HANDLER_MODULE, pack_listing::ListingBundle);
     reg.register(webhook::HANDLER_MODULE, webhook::WebhookBundle);
     reg.register(board::HANDLER_MODULE, board::BoardBundle);
+    reg.register(pack_bundle::HANDLER_MODULE, pack_bundle::PackBundle);
     reg.register(dispatcher::HANDLER_MODULE, dispatcher::DispatcherBundle);
     reg.register(
         cadencer::HANDLER_MODULE,
@@ -276,6 +277,7 @@ async fn boot_kernel(kernel: &Arc<Kernel>) -> Result<(), String> {
 }
 
 pub mod directives;
+pub mod pack_bundle;
 
 #[cfg(test)]
 mod tests {

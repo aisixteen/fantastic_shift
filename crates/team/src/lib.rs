@@ -6,6 +6,7 @@
 #![deny(missing_docs)]
 
 pub mod board;
+pub mod cadence_feed;
 pub mod cadencer;
 pub mod config;
 pub mod dispatcher;

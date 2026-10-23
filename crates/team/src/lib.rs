@@ -5,6 +5,7 @@
 //! is a thin wrapper around `fantastic_tui::main_with`.
 #![deny(missing_docs)]
 
+pub mod app_control;
 pub mod board;
 pub mod cadencer;
 pub mod config;
@@ -14,8 +15,8 @@ pub mod puller;
 pub mod repo_config;
 pub mod setup_github;
 pub mod tree;
-pub mod worker_view;
 pub mod webhook;
+pub mod worker_view;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

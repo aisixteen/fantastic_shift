@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Fantastic Team",
+  "identifier": "com.aisixteen.team",
+  "build": { "frontendDist": "http://127.0.0.1:8765" },
+  "app": {
+    "windows": [
+      { "title": "Fantastic Team", "width": 1280, "height": 800, "url": "http://127.0.0.1:8765" }
+    ],
+    "withGlobalTauri": false,
+    "security": { "csp": "default-src 'self' http://127.0.0.1:* http://localhost:*; connect-src 'self' ws://127.0.0.1:* ws://localhost:* http://127.0.0.1:* http://localhost:*; style-src 'self' 'unsafe-inline'" }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg", "msi", "nsis", "deb", "appimage"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "category": "DeveloperTool",
+    "shortDescription": "A live canvas for every folder",
+    "longDescription": "Fantastic Team: a team of agents, each with a live canvas, running on your machine.",
+    "license": "AGPL-3.0-or-later",
+    "publisher": "aisixteen",
+    "macOS": { "minimumSystemVersion": "14.0", "hardenedRuntime": true },
+    "windows": { "nsis": { "installMode": "currentUser" } },
+    "linux": { "deb": { "recommends": ["fonts-dejavu-core"] } }
+  }
+}

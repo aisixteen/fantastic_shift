@@ -110,3 +110,34 @@ fn readme_examples_hold_no_secret_values() {
         assert!(!text.contains(bad), "README must not contain `{bad}`");
     }
 }
+
+#[test]
+fn readme_defaults_match_repo_config() {
+    let text = readme();
+    let code = format!(
+        "{}\n{}",
+        fs::read_to_string(root().join("crates/team/src/config.rs")).unwrap(),
+        fs::read_to_string(root().join("crates/team/src/repo_config.rs")).unwrap(),
+    );
+    let label = code
+        .lines()
+        .find(|l| l.contains("const DEFAULT_LABEL"))
+        .and_then(|l| l.split('"').nth(1))
+        .expect("DEFAULT_LABEL must be a string literal in config.rs or repo_config.rs");
+    let defaults = text
+        .lines()
+        .find(|l| l.starts_with("Every key is optional"))
+        .expect("README must state the defaults in an `Every key is optional` line");
+    assert!(
+        defaults.contains(&format!("`{label}`")),
+        "README default label disagrees with DEFAULT_LABEL `{label}`"
+    );
+    assert!(
+        defaults.contains("one approval"),
+        "README must say the default is one approval"
+    );
+    assert!(
+        code.contains("cfg.review.approvals, 1"),
+        "repo_config.rs must default review.approvals to 1, as the README says"
+    );
+}

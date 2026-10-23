@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/team", "crates/secrets_guard", "crates/git_connector", "crates/github_connector"]
+members = ["crates/team", "crates/secrets_guard", "crates/git_connector", "crates/github_connector", "crates/team_app"]
 
 [workspace.package]
 version = "0.1.0"

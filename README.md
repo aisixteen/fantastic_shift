@@ -89,7 +89,12 @@ Tasks are exact: each says what to read, what to produce, and how to check it. T
 
 `--port` and `--tui` are the only surfaces and are not combined. Ctrl-C to stop.
 
-To run the team on another machine, the scripts start it detached, like a tmux session:
+The build packs fantastic's canvas page with a pinned esbuild. With no vendored binary it compiles esbuild itself, which needs Go 1.21 or newer on PATH.
+
+## Run it on another machine
+
+The team can run on a box with a GPU while you start and watch it from a laptop over SSH. It runs detached, like a tmux session: closing the laptop, the tunnel or a terminal never stops it. Until these become `fantastic_team remote …` subcommands, they are scripts:
+
 
 ```
 scripts/remote-add.sh gpu box.example.com:/srv/team --port 8093 --keys "ANTHROPIC_API_KEY"   # once

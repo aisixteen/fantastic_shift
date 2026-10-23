@@ -6,9 +6,13 @@
 #![deny(missing_docs)]
 
 pub mod board;
+pub mod cadence_feed;
 pub mod cadencer;
 pub mod config;
 pub mod dispatcher;
+pub mod driver;
+pub mod driver_config;
+pub mod driver_rules;
 pub mod instructions;
 pub mod peer_envelope;
 pub mod puller;

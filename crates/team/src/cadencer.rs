@@ -5,14 +5,17 @@
 //!
 //! The builder is pure: it takes a snapshot of the tree and the previous
 //! snapshot. The bundle returns the digests; delivering them into each lead's
-//! conversation is the caller's job.
+//! conversation is the caller's job. The bundle runs its own timer (when enabled)
+//! and beats with the last tree given by a `tick`.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Duration;
 
 use fantastic_kernel::bundle::{Bundle, BundleError, Reply};
 use fantastic_kernel::{AgentId, Kernel};
 use serde_json::{json, Value};
+use tokio::task::JoinHandle;
 
 /// The handler module name this bundle registers under.
 pub const HANDLER_MODULE: &str = "team_cadencer.tools";
@@ -27,6 +30,7 @@ pub(crate) struct Node {
     pub(crate) has_ai: bool,
     pub(crate) state: String,
     pub(crate) task: String,
+    pub(crate) open_inquiry: bool,
     pub(crate) idle_s: u64,
     pub(crate) time_on_task_s: u64,
     pub(crate) cost: f64,
@@ -37,6 +41,7 @@ pub(crate) struct Node {
 /// The live settings of the cadencer.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Settings {
+    pub(crate) enabled: bool,
     pub(crate) cadence_s: u64,
     pub(crate) stall_after_s: u64,
     pub(crate) quiet: bool,
@@ -46,6 +51,7 @@ pub(crate) struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Settings {
+            enabled: true,
             cadence_s: 60,
             stall_after_s: 300,
             quiet: true,
@@ -77,8 +83,14 @@ fn subtree<'a>(tree: &'a [Node], id: &str) -> Vec<&'a Node> {
     out
 }
 
+/// A node holds a task when it has one, or an inquiry is open on it.
+fn holds_task(n: &Node) -> bool {
+    !n.task.is_empty() || n.open_inquiry
+}
+
+/// Stalled only while holding a task and idle past the threshold.
 fn stalled(n: &Node, s: &Settings) -> bool {
-    n.idle_s >= s.stall_after_s
+    holds_task(n) && n.idle_s >= s.stall_after_s
 }
 
 fn changed(now: &Node, prev: Option<&Node>) -> bool {
@@ -195,6 +207,7 @@ fn node_from(v: &Value) -> Option<Node> {
         has_ai: v.get("has_ai").and_then(|x| x.as_bool()).unwrap_or(true),
         state: str_of(v, "state"),
         task: str_of(v, "task"),
+        open_inquiry: v.get("inquiry").and_then(|x| x.as_bool()).unwrap_or(false),
         idle_s: u64_of(v, "idle_s"),
         time_on_task_s: u64_of(v, "time_on_task_s"),
         cost: v.get("cost").and_then(|x| x.as_f64()).unwrap_or(0.0),
@@ -204,6 +217,9 @@ fn node_from(v: &Value) -> Option<Node> {
 }
 
 fn apply_set(s: &mut Settings, p: &Value) {
+    if let Some(e) = p.get("enabled").and_then(|x| x.as_bool()) {
+        s.enabled = e;
+    }
     if let Some(c) = p.get("cadence").and_then(|x| x.as_u64()) {
         s.cadence_s = c;
     }
@@ -225,6 +241,7 @@ fn apply_set(s: &mut Settings, p: &Value) {
 
 fn settings_json(s: &Settings) -> Value {
     json!({
+        "enabled": s.enabled,
         "cadence": s.cadence_s,
         "stall_after": s.stall_after_s,
         "quiet": s.quiet,
@@ -236,17 +253,120 @@ fn digest_json(d: &Digest) -> Value {
     json!({"to": d.to, "lines": d.lines, "text": d.lines.join("\n")})
 }
 
+/// Seconds since the first call in this process; honors tokio paused time.
+fn now_s() -> u64 {
+    static ORIGIN: OnceLock<tokio::time::Instant> = OnceLock::new();
+    let origin = *ORIGIN.get_or_init(tokio::time::Instant::now);
+    tokio::time::Instant::now().duration_since(origin).as_secs()
+}
+
 #[derive(Default)]
 struct Inner {
     settings: Settings,
+    parent: Option<String>,
+    tree: Vec<Node>,
     prev: Vec<Node>,
     ticks: u64,
+    digests_sent: u64,
+    last_beat_s: Option<u64>,
+    next_beat_s: Option<u64>,
+    timer: Option<JoinHandle<()>>,
+}
+
+fn timer_alive(inner: &Inner) -> bool {
+    inner.timer.as_ref().is_some_and(|h| !h.is_finished())
+}
+
+/// One beat: build digests from the stored tree, then remember it.
+fn beat(inner: &mut Inner) -> Vec<Digest> {
+    let digests = build(&inner.tree, &inner.prev, &inner.settings);
+    inner.prev = inner.tree.clone();
+    inner.ticks += 1;
+    inner.digests_sent += digests.len() as u64;
+    let now = now_s();
+    inner.last_beat_s = Some(now);
+    inner.next_beat_s = if timer_alive(inner) {
+        Some(now + inner.settings.cadence_s)
+    } else {
+        None
+    };
+    digests
+}
+
+/// Stop the old timer and, when enabled with a cadence, start a new one.
+fn restart_timer(shared: &Arc<Mutex<Inner>>, inner: &mut Inner) {
+    if let Some(h) = inner.timer.take() {
+        h.abort();
+    }
+    inner.next_beat_s = None;
+    if !inner.settings.enabled || inner.settings.cadence_s == 0 {
+        return;
+    }
+    let period = Duration::from_secs(inner.settings.cadence_s);
+    let shared = Arc::clone(shared);
+    inner.timer = Some(tokio::spawn(async move {
+        let mut every = tokio::time::interval_at(tokio::time::Instant::now() + period, period);
+        loop {
+            every.tick().await;
+            let mut g = shared.lock().expect("cadencer state");
+            beat(&mut g);
+        }
+    }));
+    inner.next_beat_s = Some(now_s() + inner.settings.cadence_s);
+}
+
+/// Only the parent, `maintainer` or `user` may steer the cadencer.
+fn allowed(inner: &Inner, sender: &str) -> bool {
+    sender == "maintainer"
+        || sender == "user"
+        || inner.parent.as_deref().is_some_and(|p| p == sender)
+}
+
+fn dispatch(shared: &Arc<Mutex<Inner>>, payload: &Value) -> Value {
+    let t = payload.get("type").and_then(|v| v.as_str()).unwrap_or("");
+    let mut inner = shared.lock().expect("cadencer state");
+    match t {
+        "configure" => {
+            if let Some(p) = payload.get("parent").and_then(|v| v.as_str()) {
+                inner.parent = Some(p.to_string());
+            }
+            json!({"parent": inner.parent})
+        }
+        "tick" => {
+            inner.tree = payload
+                .get("tree")
+                .and_then(|v| v.as_array())
+                .map(|a| a.iter().filter_map(node_from).collect())
+                .unwrap_or_default();
+            let digests = beat(&mut inner);
+            json!({
+                "digests": digests.iter().map(digest_json).collect::<Vec<_>>(),
+                "sent": digests.len(),
+            })
+        }
+        "set" => {
+            if !allowed(&inner, &str_of(payload, "sender")) {
+                return json!({"error": "team_cadencer: set refused"});
+            }
+            apply_set(&mut inner.settings, payload);
+            restart_timer(shared, &mut inner);
+            settings_json(&inner.settings)
+        }
+        "status" => json!({
+            "settings": settings_json(&inner.settings),
+            "ticks": inner.ticks,
+            "last_beat_s": inner.last_beat_s,
+            "next_beat_s": inner.next_beat_s,
+            "digests_sent": inner.digests_sent,
+        }),
+        other => json!({"error": format!("team_cadencer: unknown type '{other}'")}),
+    }
 }
 
 /// The cadencer bundle.
 #[derive(Default)]
 pub struct CadencerBundle {
-    inner: Mutex<Inner>,
+    inner: Arc<Mutex<Inner>>,
 }
 
 #[async_trait::async_trait]
@@ -257,9 +377,10 @@ impl Bundle for CadencerBundle {
 
     fn verb_docs(&self) -> Value {
         json!({
-            "tick": "tick {tree: [{id, parent?, has_ai?, state, task, idle_s, time_on_task_s, cost, cache_hit, new_results}]} → {digests: [{to, lines, text}], sent}",
-            "set": "set {cadence?, stall_after?, quiet?, lead?, on?} → settings",
-            "status": "status {} → {settings, ticks}",
+            "tick": "tick {tree: [{id, parent?, has_ai?, state, task, inquiry?, idle_s, time_on_task_s, cost, cache_hit, new_results}]} → {digests: [{to, lines, text}], sent}",
+            "set": "set {sender, enabled?, cadence?, stall_after?, quiet?, lead?, on?} → settings (sender must be the parent, maintainer or user)",
+            "configure": "configure {parent} → {parent}",
+            "status": "status {} → {settings, ticks, last_beat_s, next_beat_s, digests_sent}",
         })
     }
 
@@ -269,34 +390,7 @@ impl Bundle for CadencerBundle {
         payload: &Value,
         _kernel: &Arc<Kernel>,
     ) -> Result<Reply, BundleError> {
-        let t = payload.get("type").and_then(|v| v.as_str()).unwrap_or("");
-        let mut inner = self.inner.lock().expect("cadencer state");
-        let out = match t {
-            "tick" => {
-                let tree: Vec<Node> = payload
-                    .get("tree")
-                    .and_then(|v| v.as_array())
-                    .map(|a| a.iter().filter_map(node_from).collect())
-                    .unwrap_or_default();
-                let digests = build(&tree, &inner.prev, &inner.settings);
-                inner.prev = tree;
-                inner.ticks += 1;
-                json!({
-                    "digests": digests.iter().map(digest_json).collect::<Vec<_>>(),
-                    "sent": digests.len(),
-                })
-            }
-            "set" => {
-                apply_set(&mut inner.settings, payload);
-                settings_json(&inner.settings)
-            }
-            "status" => json!({
-                "settings": settings_json(&inner.settings),
-                "ticks": inner.ticks,
-            }),
-            other => json!({"error": format!("team_cadencer: unknown type '{other}'")}),
-        };
-        Ok(Some(out))
+        Ok(Some(dispatch(&self.inner, payload)))
     }
 }
 
@@ -311,6 +405,7 @@ mod tests {
             has_ai,
             state: state.into(),
             task: "t".into(),
+            open_inquiry: false,
             idle_s: idle,
             time_on_task_s: 10,
             cost: 0.5,
@@ -384,6 +479,19 @@ mod tests {
     }
 
     #[test]
+    fn idle_member_without_a_task_is_not_stalled() {
+        let mut reviewer = n("reviewer", Some("L"), true, "idle", 600);
+        reviewer.task = String::new();
+        let t = vec![n("L", None, true, "busy", 0), reviewer];
+        let ds = build(&t, &[], &Settings::default());
+        for d in &ds {
+            for line in &d.lines {
+                assert!(!line.contains("STALLED"), "unexpected: {line}");
+            }
+        }
+    }
+
+    #[test]
     fn live_set_takes_effect_next_tick() {
         let mut bundle = Inner::default();
         let mut t = two_by_three();
@@ -422,5 +530,133 @@ mod tests {
         crate::register_team(&mut reg);
         let names: Vec<&str> = reg.catalog().map(|(n, _)| n).collect();
         assert!(names.contains(&HANDLER_MODULE));
+    }
+
+    // ---- dispatch, timer and status tests ----
+
+    fn shared() -> Arc<Mutex<Inner>> {
+        Arc::new(Mutex::new(Inner::default()))
+    }
+
+    fn status(b: &Arc<Mutex<Inner>>) -> Value {
+        dispatch(b, &json!({"type": "status"}))
+    }
+
+    /// Advance paused time by `secs`, then one more ms so timer tasks due at
+    /// the boundary have run.
+    async fn run_for(secs: u64) {
+        tokio::time::sleep(Duration::from_secs(secs)).await;
+        tokio::time::sleep(Duration::from_millis(1)).await;
+    }
+
+    fn tick_with(a1_idle: u64, a1_task: &str) -> Value {
+        json!({"type": "tick", "tree": [
+            {"id": "root", "has_ai": true, "state": "busy", "task": "x", "idle_s": 0},
+            {"id": "A", "parent": "root", "has_ai": true, "state": "busy", "task": "x", "idle_s": 0},
+            {"id": "A1", "parent": "A", "has_ai": true, "state": "busy", "task": a1_task, "idle_s": a1_idle}
+        ]})
+    }
+
+    fn lines_for(reply: &Value, to: &str) -> Vec<String> {
+        reply["digests"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|d| d["to"] == to)
+            .flat_map(|d| d["lines"].as_array().cloned().unwrap_or_default())
+            .map(|l| l.as_str().unwrap_or("").to_string())
+            .collect()
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn dispatcher_ticks_on_its_own_timer() {
+        let b = shared();
+        dispatch(&b, &json!({"type": "set", "sender": "user", "cadence": 60}));
+        run_for(180).await;
+        assert_eq!(status(&b)["ticks"], 3);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn dispatcher_off_runs_no_timer() {
+        let b = shared();
+        dispatch(
+            &b,
+            &json!({"type": "set", "sender": "user", "enabled": false}),
+        );
+        run_for(600).await;
+        let s = status(&b);
+        assert_eq!(s["ticks"], 0);
+        assert!(s["next_beat_s"].is_null());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn parent_driver_sets_child_cadence_live() {
+        let b = shared();
+        dispatch(&b, &json!({"type": "configure", "parent": "lead"}));
+        dispatch(&b, &json!({"type": "set", "sender": "user", "cadence": 60}));
+        run_for(30).await;
+        let before = status(&b)["ticks"].as_u64().unwrap();
+        dispatch(&b, &json!({"type": "set", "sender": "lead", "cadence": 10}));
+        run_for(30).await;
+        assert_eq!(status(&b)["ticks"].as_u64().unwrap(), before + 3);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn set_refused_from_a_non_parent() {
+        let b = shared();
+        dispatch(&b, &json!({"type": "configure", "parent": "lead"}));
+        dispatch(&b, &json!({"type": "set", "sender": "user", "cadence": 60}));
+        let r = dispatch(
+            &b,
+            &json!({"type": "set", "sender": "stranger", "cadence": 5}),
+        );
+        assert_eq!(r, json!({"error": "team_cadencer: set refused"}));
+        assert_eq!(status(&b)["settings"]["cadence"], 60);
+    }
+
+    #[test]
+    fn stalled_worker_flagged_once_then_while_still_stalled() {
+        let b = shared();
+        let d1 = dispatch(&b, &tick_with(400, "x"));
+        let l1 = lines_for(&d1, "A");
+        assert_eq!(l1.len(), 1);
+        assert!(l1[0].contains("STALLED"));
+        // Still idle and growing: reported again.
+        let d2 = dispatch(&b, &tick_with(460, "x"));
+        let l2 = lines_for(&d2, "A");
+        assert_eq!(l2.len(), 1);
+        assert!(l2[0].contains("STALLED"));
+        // It moves: stall gone, nothing sent for A.
+        let d3 = dispatch(&b, &tick_with(0, "x"));
+        assert!(lines_for(&d3, "A").is_empty());
+    }
+
+    #[test]
+    fn idle_member_without_a_task_is_not_stalled_live() {
+        let b = shared();
+        let tree = json!({"type": "tick", "tree": [
+            {"id": "L", "has_ai": true, "state": "busy", "task": "x", "idle_s": 0},
+            {"id": "reviewer", "parent": "L", "has_ai": true, "state": "idle", "task": "", "idle_s": 600}
+        ]});
+        for _ in 0..2 {
+            let d = dispatch(&b, &tree);
+            assert!(lines_for(&d, "L").iter().all(|l| !l.contains("STALLED")));
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn status_reports_last_and_next_beat_and_digests_sent() {
+        let b = shared();
+        dispatch(&b, &json!({"type": "set", "sender": "user", "cadence": 60}));
+        let first = dispatch(&b, &tick_with(0, "x"));
+        let n1 = first["digests"].as_array().unwrap().len() as u64;
+        run_for(60).await;
+        let s = status(&b);
+        assert_eq!(s["ticks"], 2);
+        assert_eq!(s["digests_sent"].as_u64().unwrap(), n1);
+        assert_eq!(
+            s["next_beat_s"].as_u64().unwrap() - s["last_beat_s"].as_u64().unwrap(),
+            60
+        );
     }
 }

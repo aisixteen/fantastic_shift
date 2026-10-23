@@ -175,4 +175,11 @@ mod tests {
         }
         assert!(text.contains("spec"));
     }
+
+    #[test]
+    fn driver_directive_says_clear_before_a_new_task() {
+        assert!(LEAD.contains("context_clear"));
+        assert!(LEAD.contains("Before handing a worker a NEW task"));
+        assert!(LEAD.contains("A nudge on the same task keeps its context"));
+    }
 }

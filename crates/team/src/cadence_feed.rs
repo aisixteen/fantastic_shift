@@ -38,6 +38,7 @@ pub fn tree_from_board(rows: &[Value]) -> Vec<Value> {
                 "cost": row.get("cost").cloned().unwrap_or(json!(0.0)),
                 "cache_hit": row.get("cache_hit").and_then(Value::as_bool).unwrap_or(false),
                 "new_results": row.get("new_results").cloned().unwrap_or(json!([])),
+                "driver": row.get("driver").cloned().unwrap_or(json!("")),
             }))
         })
         .collect()

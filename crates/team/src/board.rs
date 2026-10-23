@@ -502,7 +502,7 @@ fn cfg_of(
         store: text("store").ok_or_else(|| "team_board: record needs `store`".to_string())?,
         ask_to: text("ask_to").unwrap_or_else(|| "user".into()),
         groups: meta
-            .get("groups")
+            .get("team_groups")
             .and_then(|v| serde_json::from_value(v.clone()).ok())
             .unwrap_or_default(),
         stale_secs: meta
@@ -1029,5 +1029,48 @@ mod tests {
         assert_eq!(m["state"], "busy");
         let g = rows.iter().find(|r| r["id"] == "g1").unwrap();
         assert_eq!(g["has_ai"], false);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn team_groups_survive_a_real_kernel_create() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let kernel = crate::start(dir.path()).await.unwrap();
+        let created = kernel
+            .send(vec![fantastic_kernel::Item::new(
+                "kernel",
+                json!({
+                    "type": "create_agent",
+                    "id": "board_t",
+                    "parent_id": "kernel_state",
+                    "handler_module": HANDLER_MODULE,
+                    "github": "gh",
+                    "store": "store",
+                    "team_groups": {
+                        "g1": {"driver": "d1", "members": ["m1", "m2"]}
+                    }
+                }),
+            )])
+            .await;
+        assert!(
+            matches!(created[0].status, fantastic_kernel::Status::Completed),
+            "create_agent failed: {:?}",
+            created[0].result
+        );
+        let outcomes = kernel
+            .send(vec![fantastic_kernel::Item::new(
+                "board_t",
+                json!({"type": "rows"}),
+            )])
+            .await;
+        let rows = outcomes[0].result["rows"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let g = rows.iter().find(|r| r["id"] == "g1");
+        assert!(g.is_some(), "group g1 missing from rows: {rows:?}");
+        let m1 = rows.iter().find(|r| r["id"] == "m1").unwrap();
+        assert_eq!(m1["parent"], "g1");
+        kernel.shutdown().await;
+        crate::bootstrap::shutdown(dir.path()).unwrap();
     }
 }

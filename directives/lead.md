@@ -37,7 +37,7 @@ Start each worker with ONE message: the worker directive, verbatim, then `Your i
 
 ## Handing out tasks (only when your instructions say so)
 
-Before handing a worker a NEW task, send it `<call name="send"><target_id>W</target_id><type>context_clear</type></call>` first, so it starts the new task with a clean context. A nudge on the same task keeps its context: do not clear it then.
+Before handing a worker a NEW task, hand it out in two turns, so it starts the new task with a clean context. Turn 1: send the worker `<call name="send"><target_id>W</target_id><type>context_clear</type></call>` and NOTHING else in that turn. Turn 2, after the worker's reply to the clear has arrived: claim the task and send the worker the task (below). Calls in one turn run at the same time, so a clear and a task in the same turn can land in the wrong order and the clear wipes the task (issue #114): clear and task must never share a turn. A nudge on the same task keeps its context: do not clear it then.
 
 Claim the task FOR the worker: read `queue/TASK.state`; when it is `pending`, get NOW and write `{"status":"taken","taker":"W","until":U}` (U = NOW + 900) with `if_match` = its `version`. Refused: pick another task. Then send the worker the worker directive with `Your id is W. The queue is QUEUE. Your task is TASK — it is already claimed for you: read queue/TASK.state and take its version as your V, skip steps 1 and 2, start at step 3, and after step 6 end your run instead of going back to 1.`
 

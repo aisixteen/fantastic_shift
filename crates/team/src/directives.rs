@@ -182,4 +182,12 @@ mod tests {
         assert!(LEAD.contains("Before handing a worker a NEW task"));
         assert!(LEAD.contains("A nudge on the same task keeps its context"));
     }
+
+    #[test]
+    fn driver_directive_says_hand_out_in_two_turns() {
+        assert!(LEAD.contains("in two turns"));
+        assert!(LEAD.contains("Calls in one turn run at the same time"));
+        assert!(LEAD.contains("Turn 1"));
+        assert!(LEAD.contains("Turn 2"));
+    }
 }

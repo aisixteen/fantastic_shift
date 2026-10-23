@@ -37,4 +37,3 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 tempfile = "3"
 tokio = { workspace = true, features = ["test-util", "macros", "rt"] }
 wiremock = "=0.6.5"
-

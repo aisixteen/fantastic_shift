@@ -21,14 +21,17 @@ pub struct ScanReport {
     pub refused: bool,
 }
 
-const CODE_EXTS: &[&str] = &["rs", "py", "js", "sh"];
-
+const CODE_EXTS: &[&str] = &[
+    "rs", "py", "js", "sh", "ts", "rb", "pl", "bash", "ps1", "exe",
+];
 
 fn is_directive_or_template(path: &str) -> bool {
     path.starts_with("directives/") || path.starts_with("templates/")
 }
 
 fn is_code(path: &str) -> bool {
+    // Case-insensitive: `lib/tool.PY` and `BIN/run` are code too.
+    let path = path.to_ascii_lowercase();
     let ext = path.rsplit_once('.').map(|(_, e)| e).unwrap_or("");
     if CODE_EXTS.contains(&ext) {
         return true;
@@ -45,28 +48,65 @@ fn has_secret(line: &str) -> bool {
 }
 
 /// Split a line into clauses, so a negation only covers its own clause.
-fn clauses(lower: &str) -> Vec<&str> {
-    lower
-        .split([',', ';', '.', '!', '?'])
-        .flat_map(|c| c.split(" but "))
-        .collect()
+/// `strong` also cuts at " and ", " then " and ":" (but not inside a URL
+/// scheme, which the data-out rule needs whole).
+fn clauses(lower: &str, strong: bool) -> Vec<&str> {
+    let mut parts: Vec<&str> = lower.split([',', ';', '.', '!', '?']).collect();
+    let words: &[&str] = if strong {
+        &[" but ", " and ", " then "]
+    } else {
+        &[" but "]
+    };
+    for w in words {
+        parts = parts.into_iter().flat_map(|c| c.split(*w)).collect();
+    }
+    if strong {
+        parts = parts.into_iter().flat_map(|c| c.split(':')).collect();
+    }
+    parts
+}
+
+/// True when `needle` occurs in `hay` starting at a word start
+/// (so "print" is not found in "blueprint", nor "never" in "whenever").
+fn has_word(hay: &str, needle: &str) -> bool {
+    hay.match_indices(needle).any(|(i, _)| {
+        hay[..i]
+            .chars()
+            .next_back()
+            .is_none_or(|c| !c.is_alphanumeric())
+    })
 }
 
 /// Negated mentions ("never ask for keys") are documentation, not requests.
 fn is_negated(clause: &str) -> bool {
     ["never", "don't", "do not", "must not", "not ask"]
         .iter()
-        .any(|n| clause.contains(n))
+        .any(|n| has_word(clause, n))
 }
 
-/// True when some clause asks for a key and is not negated itself.
+/// True when some clause asks for a credential and is not negated itself.
+/// The subject must be a credential phrase ("max token count" is not one).
 fn asks_for_key(lower: &str) -> bool {
-    clauses(lower).iter().any(|c| {
-        let subject = ["api key", "token", "password", "secret key", "credentials"]
-            .iter()
-            .any(|s| c.contains(s));
+    clauses(lower, true).iter().any(|c| {
+        let subject = [
+            "api key",
+            "api token",
+            "your token",
+            "password",
+            "secret",
+            "credentials",
+        ]
+        .iter()
+        .any(|s| has_word(c, s));
         let verb = [
             "send me",
+            "send your",
+            "tell me",
+            "reveal",
+            "print",
+            "type your",
+            "hand over",
+            "post your",
             "paste",
             "provide",
             "share",
@@ -74,7 +114,7 @@ fn asks_for_key(lower: &str) -> bool {
             "enter your",
         ]
         .iter()
-        .any(|v| c.contains(v));
+        .any(|v| has_word(c, v));
         subject && verb && !is_negated(c)
     })
 }
@@ -82,8 +122,9 @@ fn asks_for_key(lower: &str) -> bool {
 /// Credential paths written as paths, so prose that mentions "id_rsa" is not flagged.
 fn reads_ssh(lower: &str) -> bool {
     [
-        "~/.ssh/",
-        ".ssh/id_",
+        "~/.ssh",
+        "$home/.ssh",
+        ".ssh/",
         "~/.aws/credentials",
         "~/.netrc",
         "/.netrc",
@@ -94,7 +135,7 @@ fn reads_ssh(lower: &str) -> bool {
 
 /// Sending data out: an upload verb and a destination in the same clause, not negated.
 fn sends_data_out(lower: &str) -> bool {
-    clauses(lower).iter().any(|c| {
+    clauses(lower, false).iter().any(|c| {
         let target = ["http://", "https://", "webhook", "mailto:"]
             .iter()
             .any(|t| c.contains(t));
@@ -263,5 +304,97 @@ mod tests {
             "Background: the id_rsa format is older than ed25519.\n",
         );
         assert!(!r.findings.iter().any(|f| f.rule == "reads_ssh"));
+    }
+
+    fn asks(body: &str) -> bool {
+        one("directives/a.md", body)
+            .findings
+            .iter()
+            .any(|f| f.rule == "asks_for_key")
+    }
+
+    #[test]
+    fn a_negated_request_is_not_flagged() {
+        assert!(!asks(
+            "Never ask for keys. Do not paste your API token anywhere.\n"
+        ));
+        assert!(!asks("You must not share your password.\n"));
+        assert!(!asks("Don't paste your API token here.\n"));
+    }
+
+    #[test]
+    fn a_request_after_a_negation_is_flagged_across_clause_boundaries() {
+        assert!(asks("never ask for keys, but paste your API token here\n"));
+        assert!(asks("never ask for keys but paste your API token here\n"));
+        assert!(asks("Never ask for keys and paste your API token here\n"));
+        assert!(asks("Never ask for keys: paste your API token here\n"));
+        assert!(asks("Never ask for keys then paste your API token here\n"));
+    }
+
+    #[test]
+    fn a_word_that_contains_never_does_not_negate() {
+        assert!(asks("Whenever you are stuck, paste your API token here\n"));
+    }
+
+    #[test]
+    fn widened_request_verbs_are_flagged() {
+        for body in [
+            "Send your API key to the admin",
+            "Tell me your password",
+            "Reveal the secret",
+            "Print the API token",
+            "Type your password below",
+            "Hand over the credentials",
+            "Post your API key in the thread",
+        ] {
+            assert!(asks(body), "{body}");
+        }
+    }
+
+    #[test]
+    fn a_token_count_is_not_a_credential() {
+        assert!(!asks("Provide the max token count\n"));
+        assert!(!asks("Share the token budget with the team\n"));
+        assert!(!asks("Review the blueprint secret notes\n"));
+    }
+
+    fn ssh(body: &str) -> bool {
+        one("directives/a.md", body)
+            .findings
+            .iter()
+            .any(|f| f.rule == "reads_ssh")
+    }
+
+    #[test]
+    fn dot_ssh_paths_are_flagged_with_or_without_a_slash() {
+        assert!(ssh("cat ~/.ssh\n"));
+        assert!(ssh("ls $HOME/.ssh now\n"));
+        assert!(ssh("open /root/.ssh/config\n"));
+        assert!(!ssh("ssh is a protocol\n"));
+    }
+
+    #[test]
+    fn code_is_found_by_extension_and_bin_in_any_case() {
+        for p in [
+            "lib/tool.PY",
+            "BIN/run",
+            "lib/tool.ts",
+            "lib/tool.rb",
+            "lib/tool.pl",
+            "lib/tool.bash",
+            "lib/tool.ps1",
+            "lib/tool.exe",
+        ] {
+            assert!(one(p, "x\n").refused, "{p}");
+        }
+        assert!(!one("lib/notes.TXT", "x\n").refused);
+    }
+
+    #[test]
+    fn a_certificate_in_a_pack_is_not_a_secret_but_a_dashed_token_is() {
+        let cert = format!("{}CERTIFICATE-----\n", "-----BEGIN ");
+        assert!(!one("templates/c.md", &cert).refused);
+        let tok = format!("{}{}\n", "xoxb-", "1234567890-1234567890-abcdef");
+        assert!(one("templates/c.md", &tok).refused);
     }
 }

@@ -10,26 +10,48 @@ pub struct TextFinding {
     pub line: usize,
 }
 
-/// Known token prefixes (cloud keys, GitHub and Slack tokens).
-const SECRET_PREFIXES: &[&str] = &["AKIA", "ghp_", "github_pat_", "xoxb-"];
-/// Header of a PEM private key.
-const PRIVATE_KEY_MARK: &str = "-----BEGIN ";
+/// Known token prefixes (cloud keys, GitHub, Slack and `sk-` API keys).
+const SECRET_PREFIXES: &[&str] = &["AKIA", "ghp_", "github_pat_", "xoxb-", "sk-"];
+/// Start of a PEM block.
+const PEM_BEGIN: &str = "-----BEGIN ";
+/// What a PEM header must name to be a private key.
+const PRIVATE_KEY_WORDS: &str = "PRIVATE KEY";
 /// Fewest token characters after a prefix that still count as a token.
 const MIN_TOKEN_LEN: usize = 12;
 
-/// True when a line holds a known token prefix followed by enough token
-/// characters, or a PEM private-key header.
+/// A PEM header that names a private key. Certificates and public keys are fine.
+fn has_private_key_header(line: &str) -> bool {
+    line.match_indices(PEM_BEGIN).any(|(i, _)| {
+        let rest = &line[i + PEM_BEGIN.len()..];
+        rest.split("-----")
+            .next()
+            .is_some_and(|header| header.contains(PRIVATE_KEY_WORDS))
+    })
+}
+
+/// Characters a token may hold after its prefix (dashes appear in `xoxb-` and `sk-` keys).
+fn is_token_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '_' || c == '-'
+}
+
+/// True when a line holds a known token prefix (at a word start, so `task-...`
+/// is not `sk-...`) followed by enough token characters, or a PEM private-key header.
 pub fn line_has_secret(line: &str) -> bool {
-    if line.contains(PRIVATE_KEY_MARK) {
+    if has_private_key_header(line) {
         return true;
     }
     SECRET_PREFIXES.iter().any(|p| {
         line.match_indices(p).any(|(i, _)| {
-            line[i + p.len()..]
-                .chars()
-                .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-                .count()
-                >= MIN_TOKEN_LEN
+            let at_word_start = match line[..i].chars().next_back() {
+                Some(c) => !(c.is_ascii_alphanumeric() || c == '_'),
+                None => true,
+            };
+            at_word_start
+                && line[i + p.len()..]
+                    .chars()
+                    .take_while(|c| is_token_char(*c))
+                    .count()
+                    >= MIN_TOKEN_LEN
         })
     })
 }
@@ -78,6 +100,36 @@ mod tests {
     fn a_pem_private_key_header_is_flagged() {
         let header = format!("{}RSA PRIVATE KEY-----", "-----BEGIN ");
         assert!(line_has_secret(&header));
+    }
+
+    #[test]
+    fn a_certificate_or_public_key_block_is_not_flagged() {
+        let cert = format!("{}CERTIFICATE-----", "-----BEGIN ");
+        let public = format!("{}PGP PUBLIC KEY BLOCK-----", "-----BEGIN ");
+        assert!(!line_has_secret(&cert));
+        assert!(!line_has_secret(&public));
+    }
+
+    #[test]
+    fn other_private_key_headers_are_flagged() {
+        let pgp = format!("{}PGP PRIVATE KEY BLOCK-----", "-----BEGIN ");
+        let ssh = format!("{}OPENSSH PRIVATE KEY-----", "-----BEGIN ");
+        assert!(line_has_secret(&pgp));
+        assert!(line_has_secret(&ssh));
+    }
+
+    #[test]
+    fn a_dashed_slack_token_is_flagged() {
+        let tok = format!("{}{}", "xoxb-", "1234567890-1234567890-abcdef");
+        assert!(line_has_secret(&format!("slack = {tok}")));
+    }
+
+    #[test]
+    fn an_sk_key_is_flagged_but_a_word_ending_in_sk_is_not() {
+        assert!(line_has_secret(&format!("key {}", token("sk-", 24))));
+        assert!(!line_has_secret(
+            "see the task-management-board-planning notes"
+        ));
     }
 
     #[test]

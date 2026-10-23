@@ -76,19 +76,18 @@ pub fn wants_pull(event: &str, payload: &Value) -> bool {
 }
 
 /// Verify, then map. Replies never contain the secret.
-pub async fn receive(
-    peers: &dyn Peers,
-    cfg: &WebhookCfg,
-    headers: &Value,
-    body: &str,
-) -> Value {
+pub async fn receive(peers: &dyn Peers, cfg: &WebhookCfg, headers: &Value, body: &str) -> Value {
     if !cfg.enabled {
         return json!({"refused": "webhook disabled"});
     }
     let Some(secret) = cfg.secret.as_deref() else {
         return json!({"refused": "no webhook secret configured"});
     };
-    if !verify(secret.as_bytes(), body.as_bytes(), header(headers, SIG_HEADER)) {
+    if !verify(
+        secret.as_bytes(),
+        body.as_bytes(),
+        header(headers, SIG_HEADER),
+    ) {
         return json!({"refused": "bad or missing signature"});
     }
     let event = header(headers, EVENT_HEADER).unwrap_or("");
@@ -115,7 +114,10 @@ fn cfg_of(kernel: &Arc<fantastic_kernel::Kernel>, id: &fantastic_kernel::AgentId
         .and_then(|name| std::env::var(name).ok())
         .filter(|s| !s.is_empty());
     WebhookCfg {
-        enabled: meta.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false),
+        enabled: meta
+            .get("enabled")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
         secret,
         board: meta
             .get("board")

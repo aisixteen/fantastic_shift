@@ -22,8 +22,7 @@ pub struct ScanReport {
 }
 
 const CODE_EXTS: &[&str] = &["rs", "py", "js", "sh"];
-const SECRET_PREFIXES: &[&str] = &["AKIA", "ghp_", "github_pat_", "xoxb-"];
-const PRIVATE_KEY_MARK: &str = "-----BEGIN ";
+
 
 fn is_directive_or_template(path: &str) -> bool {
     path.starts_with("directives/") || path.starts_with("templates/")
@@ -42,18 +41,7 @@ fn is_code(path: &str) -> bool {
 /// A line holds a secret-looking token: a known prefix followed by enough
 /// token characters, or a PEM private-key header.
 fn has_secret(line: &str) -> bool {
-    if line.contains(PRIVATE_KEY_MARK) {
-        return true;
-    }
-    SECRET_PREFIXES.iter().any(|p| {
-        line.match_indices(p).any(|(i, _)| {
-            line[i + p.len()..]
-                .chars()
-                .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-                .count()
-                >= 12
-        })
-    })
+    secrets_guard::scan::line_has_secret(line)
 }
 
 /// Split a line into clauses, so a negation only covers its own clause.

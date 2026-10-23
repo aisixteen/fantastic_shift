@@ -86,6 +86,9 @@ pub struct InMemoryEndpoint {
 
 #[async_trait]
 impl PeerTransport for InMemoryEndpoint {
+    // NOTE: this holds the hub lock while pushing into the peer's inbox. That is
+    // fine for an unbounded in-process channel. A bounded or async transport must
+    // not copy this: release the lock before any await or blocking send.
     async fn send(&self, to: &str, frame: Vec<u8>) -> Result<()> {
         let inner = self.hub.inner.lock().expect("hub lock");
         if !inner.peers.contains_key(&self.name) {

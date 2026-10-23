@@ -309,7 +309,12 @@ fn beat(inner: &mut Inner) -> Vec<Digest> {
 /// the board gives no `rows` list.
 async fn read_board(peers: &dyn Peers, board: &str) -> Option<Vec<Node>> {
     let reply = peers.ask(board, json!({"type": "rows"})).await;
-    let rows = reply.get("rows")?.as_array()?;
+    let body = if reply.get("rows").is_some() {
+        reply
+    } else {
+        reply.get("result")?.clone()
+    };
+    let rows = body.get("rows")?.as_array()?;
     Some(
         cadence_feed::tree_from_board(rows)
             .iter()
@@ -376,11 +381,15 @@ fn restart_timer(shared: &Arc<Mutex<Inner>>, inner: &mut Inner) {
     inner.next_beat_s = Some(now_s() + inner.settings.cadence_s);
 }
 
-/// Only the parent, `maintainer` or `user` may steer the cadencer.
-fn allowed(inner: &Inner, sender: &str) -> bool {
-    sender == "maintainer"
-        || sender == "user"
-        || inner.parent.as_deref().is_some_and(|p| p == sender)
+/// Only the parent, `maintainer`, `user` or the CLI leg (`mcp`) may steer the
+/// cadencer. A send with no origin is an operator send, which is trusted.
+fn allowed(inner: &Inner, origin: Option<&str>) -> bool {
+    match origin {
+        None => true,
+        Some(s) => {
+            s == "maintainer" || s == "user" || s == "mcp" || inner.parent.as_deref() == Some(s)
+        }
+    }
 }
 
 fn dispatch(shared: &Arc<Mutex<Inner>>, payload: &Value) -> Value {
@@ -394,6 +403,7 @@ fn dispatch(shared: &Arc<Mutex<Inner>>, payload: &Value) -> Value {
             if let Some(p) = payload.get("parent").and_then(|v| v.as_str()) {
                 inner.parent = Some(p.to_string());
             }
+            restart_timer(shared, &mut inner);
             json!({"parent": inner.parent})
         }
         "tick" => {
@@ -409,8 +419,13 @@ fn dispatch(shared: &Arc<Mutex<Inner>>, payload: &Value) -> Value {
             })
         }
         "set" => {
-            if !allowed(&inner, &str_of(payload, "sender")) {
-                return json!({"error": "team_cadencer: set refused"});
+            let seen = fantastic_kernel::current_origin().map(|a| a.as_str().to_string());
+            if !allowed(&inner, seen.as_deref()) {
+                return json!({"error": format!(
+                    "team_cadencer: set refused: sender {}, parent {}",
+                    seen.as_deref().unwrap_or("operator"),
+                    inner.parent.as_deref().unwrap_or("none")
+                )});
             }
             apply_set(&mut inner.settings, payload);
             let want = (inner.settings.enabled, inner.settings.cadence_s);
@@ -721,11 +736,12 @@ mod tests {
         let b = shared();
         dispatch(&b, &json!({"type": "configure", "parent": "lead"}));
         dispatch(&b, &json!({"type": "set", "sender": "user", "cadence": 60}));
-        let r = dispatch(
-            &b,
-            &json!({"type": "set", "sender": "stranger", "cadence": 5}),
-        );
-        assert_eq!(r, json!({"error": "team_cadencer: set refused"}));
+        {
+            let g = b.lock().unwrap();
+            assert!(!allowed(&g, Some("stranger")));
+            assert!(allowed(&g, Some("lead")));
+            assert!(allowed(&g, None));
+        }
         assert_eq!(status(&b)["settings"]["cadence"], 60);
     }
 

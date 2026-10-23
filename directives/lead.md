@@ -37,6 +37,8 @@ Start each worker with ONE message: the worker directive, verbatim, then `Your i
 
 ## Handing out tasks (only when your instructions say so)
 
+Before handing a worker a NEW task, send it `<call name="send"><target_id>W</target_id><type>context_clear</type></call>` first, so it starts the new task with a clean context. A nudge on the same task keeps its context: do not clear it then.
+
 Claim the task FOR the worker: read `queue/TASK.state`; when it is `pending`, get NOW and write `{"status":"taken","taker":"W","until":U}` (U = NOW + 900) with `if_match` = its `version`. Refused: pick another task. Then send the worker the worker directive with `Your id is W. The queue is QUEUE. Your task is TASK — it is already claimed for you: read queue/TASK.state and take its version as your V, skip steps 1 and 2, start at step 3, and after step 6 end your run instead of going back to 1.`
 
 ## Starting other leads (only when your instructions say so)

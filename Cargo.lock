@@ -987,6 +987,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "serde_yaml",
  "sha2",
  "team-git-connector",
  "team-github-connector",

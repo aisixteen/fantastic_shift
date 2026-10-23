@@ -252,9 +252,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let id = TeamId::load_or_create(dir.path()).unwrap();
         assert!(is_hex32(id.as_str()));
-        if let Ok(host) = std::env::var("HOSTNAME") {
-            assert!(!id.as_str().contains(&host));
-        }
+        let host = std::env::var("HOSTNAME").unwrap_or_else(|_| "unknown-host".into());
+        assert!(!id.as_str().contains(&host));
     }
 
     #[test]
@@ -359,5 +358,23 @@ mod tests {
         let mut e = env(Kind::Task, serde_json::json!({}));
         e.reply_to = Some(secret.clone());
         assert!(check(&e).is_err());
+    }
+
+    #[test]
+    fn a_pem_private_key_header_is_refused_without_echo() {
+        let header = format!("-----BEGIN RSA {}", "PRIVATE KEY-----");
+        let e = env(Kind::Task, serde_json::json!({"note": header}));
+        let err = check(&e).unwrap_err();
+        assert!(err.contains("private key"), "{err}");
+        assert!(!err.contains(&header), "{err}");
+    }
+
+    #[test]
+    fn a_long_mixed_class_run_is_refused() {
+        let run = "Qz9kLm2PxR7vTn4WbY8sHc3JfG6aUe1IoD0ZkMpNqWrT5yVb";
+        let e = env(Kind::Task, serde_json::json!({"note": run}));
+        let err = check(&e).unwrap_err();
+        assert!(err.contains("high-entropy"), "{err}");
+        assert!(!err.contains(run), "{err}");
     }
 }

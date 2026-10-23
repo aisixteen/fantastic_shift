@@ -642,6 +642,7 @@ mod tests {
             crate::board::Live {
                 generating: true,
                 cache_hit: 0.0,
+                ..Default::default()
             },
         );
         let to_nodes = |rows: Vec<Value>| -> Vec<Node> {
@@ -660,6 +661,50 @@ mod tests {
         assert_eq!(got[0].0, "d1");
         assert!(got[0].1.contains("w1"));
         assert!(!got[0].1.contains("w2"));
+    }
+
+    #[test]
+    fn digests_follow_real_work() {
+        let mut board = crate::board::Board::default();
+        board.touch_agent("w1", "", 0.0, 0);
+        let mut groups = BTreeMap::new();
+        groups.insert(
+            "g1".to_string(),
+            crate::board::Group {
+                driver: "d1".into(),
+                members: vec!["w1".into()],
+            },
+        );
+        let live = |inquiry: &str, newest_row: u64| {
+            let mut m = BTreeMap::new();
+            m.insert(
+                "w1".to_string(),
+                crate::board::Live {
+                    inquiry: Some(inquiry.to_string()),
+                    newest_row: Some(newest_row),
+                    ..Default::default()
+                },
+            );
+            m
+        };
+        let nodes = |lv: &BTreeMap<String, crate::board::Live>, now: u64| -> Vec<Node> {
+            let rows = crate::board::rows_from(&board, &groups, lv, now);
+            crate::cadence_feed::tree_from_board(&rows)
+                .iter()
+                .filter_map(node_from)
+                .collect()
+        };
+        let s = Settings::default();
+        let first = nodes(&live("build", 5), 10);
+        // The worker's newest row did not move and its task is the same: nothing to say.
+        let unmoved = nodes(&live("build", 5), 20);
+        assert!(build(&unmoved, &first, &s).is_empty());
+        // The worker moved on to new work: a changed line goes to the driver.
+        let moved = nodes(&live("test", 18), 20);
+        let ds = build(&moved, &first, &s);
+        assert_eq!(ds.len(), 1);
+        assert_eq!(ds[0].to, "d1");
+        assert!(ds[0].lines[0].contains("w1") && ds[0].lines[0].contains("test"));
     }
 
     // ---- dispatch, timer and status tests ----

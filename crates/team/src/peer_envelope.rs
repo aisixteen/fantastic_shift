@@ -33,11 +33,19 @@ impl TeamId {
     /// Read `<dir>/team_id`, or create it once with a random 128-bit hex id.
     pub fn load_or_create(dir: &Path) -> std::io::Result<Self> {
         let path = dir.join("team_id");
-        if let Ok(s) = std::fs::read_to_string(&path) {
-            let s = s.trim().to_string();
-            if is_hex32(&s) {
-                return Ok(Self(s));
+        match std::fs::read_to_string(&path) {
+            Ok(s) => {
+                let s = s.trim().to_string();
+                if is_hex32(&s) {
+                    return Ok(Self(s));
+                }
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "team_id file is malformed; refusing to replace the team's identity",
+                ));
             }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
         }
         std::fs::create_dir_all(dir)?;
         let mut b = [0u8; 16];
@@ -153,14 +161,28 @@ pub fn check(env: &Envelope) -> Result<(), String> {
     if let Some(shape) = secret_shape(&text) {
         return Err(format!("refused: body holds a {shape}; no value is echoed"));
     }
+    for s in [Some(env.msg_id.as_str()), env.reply_to.as_deref()]
+        .into_iter()
+        .flatten()
+    {
+        if let Some(shape) = secret_shape(s) {
+            return Err(format!("refused: a message id holds a {shape}; no value is echoed"));
+        }
+    }
     Ok(())
+}
+
+/// A field name that names a credential: contains a key word, any case.
+fn is_key_name(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    KEY_FIELDS.iter().any(|w| n.contains(w))
 }
 
 /// The first key-like field at any depth, by name.
 fn key_field(v: &Value) -> Option<String> {
     match v {
         Value::Object(m) => m.iter().find_map(|(k, x)| {
-            if KEY_FIELDS.contains(&k.to_ascii_lowercase().as_str()) {
+            if is_key_name(k) {
                 Some(k.clone())
             } else {
                 key_field(x)
@@ -185,14 +207,16 @@ fn secret_shape(text: &str) -> Option<&'static str> {
     None
 }
 
+/// A run of 40+ letters and digits with a real character-class mix (digits,
+/// upper and lower case). Splits on every non-alphanumeric byte, so `/` and
+/// `-` end a run; a pure hex run (a git SHA, a hash) is not a secret.
 fn has_long_mixed_run(text: &str) -> bool {
-    text.split(|c: char| {
-        !(c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '_' || c == '-')
-    })
-    .any(|run| {
+    text.split(|c: char| !c.is_ascii_alphanumeric()).any(|run| {
         run.len() >= RUN_MIN
+            && !run.bytes().all(|b| b.is_ascii_hexdigit())
             && run.bytes().any(|b| b.is_ascii_digit())
-            && run.bytes().any(|b| b.is_ascii_alphabetic())
+            && run.bytes().any(|b| b.is_ascii_uppercase())
+            && run.bytes().any(|b| b.is_ascii_lowercase())
     })
 }
 
@@ -290,5 +314,50 @@ mod tests {
         );
         assert!(check(&e).is_ok());
         assert!(decode(&encode_checked(&e).unwrap()).is_ok());
+    }
+
+    #[test]
+    fn a_malformed_team_id_file_is_an_error_not_a_replacement() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("team_id"), "not-a-team-id\n").unwrap();
+        assert!(TeamId::load_or_create(dir.path()).is_err());
+        let kept = std::fs::read_to_string(dir.path().join("team_id")).unwrap();
+        assert_eq!(kept, "not-a-team-id\n");
+    }
+
+    #[test]
+    fn credential_names_that_contain_key_words_are_refused() {
+        for name in ["api_key", "github_token", "access_token", "x-api-key", "client_secret"] {
+            let e = env(Kind::Task, serde_json::json!({ name: "ok-value" }));
+            let err = check(&e).unwrap_err();
+            assert!(err.contains("credential field"), "{name}: {err}");
+            assert!(!err.contains("ok-value"), "{name}: {err}");
+        }
+    }
+
+    #[test]
+    fn a_sha_and_a_repo_url_pass() {
+        let sha = "2dabec185de983514ddceda6bdc684d15ba705ac";
+        let e = env(
+            Kind::Result,
+            serde_json::json!({
+                "commit": sha,
+                "repo": "https://github.com/aisixteen/fantastic_team/pull/85",
+                "path": "crates/team/src/peer_envelope.rs",
+            }),
+        );
+        assert!(check(&e).is_ok(), "{:?}", check(&e));
+    }
+
+    #[test]
+    fn a_secret_in_msg_id_or_reply_to_is_refused() {
+        let secret = format!("{}{}", "ghp_", "abcdefghijklmnop1234");
+        let mut e = env(Kind::Task, serde_json::json!({}));
+        e.msg_id = secret.clone();
+        let err = check(&e).unwrap_err();
+        assert!(!err.contains(&secret), "{err}");
+        let mut e = env(Kind::Task, serde_json::json!({}));
+        e.reply_to = Some(secret.clone());
+        assert!(check(&e).is_err());
     }
 }

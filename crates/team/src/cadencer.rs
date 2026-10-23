@@ -30,6 +30,7 @@ const BOARD: &str = "board";
 pub(crate) struct Node {
     pub(crate) id: String,
     pub(crate) parent: Option<String>,
+    pub(crate) driver: String,
     pub(crate) has_ai: bool,
     pub(crate) state: String,
     pub(crate) task: String,
@@ -184,7 +185,9 @@ pub(crate) fn build(tree: &[Node], prev: &[Node], s: &Settings) -> Vec<Digest> {
         if lines.is_empty() {
             continue;
         }
-        let to = if lead.has_ai {
+        let to = if !lead.driver.is_empty() {
+            lead.driver.clone()
+        } else if lead.has_ai {
             lead.id.clone()
         } else {
             BOARD.to_string()
@@ -208,6 +211,7 @@ fn node_from(v: &Value) -> Option<Node> {
         id,
         parent: v.get("parent").and_then(|x| x.as_str()).map(String::from),
         has_ai: v.get("has_ai").and_then(|x| x.as_bool()).unwrap_or(true),
+        driver: str_of(v, "driver"),
         state: str_of(v, "state"),
         task: str_of(v, "task"),
         open_inquiry: v.get("inquiry").and_then(|x| x.as_bool()).unwrap_or(false),
@@ -472,6 +476,7 @@ mod tests {
         Node {
             id: id.into(),
             parent: parent.map(String::from),
+            driver: String::new(),
             has_ai,
             state: state.into(),
             task: "t".into(),
@@ -600,6 +605,46 @@ mod tests {
         crate::register_team(&mut reg);
         let names: Vec<&str> = reg.catalog().map(|(n, _)| n).collect();
         assert!(names.contains(&HANDLER_MODULE));
+    }
+
+    #[tokio::test]
+    async fn cadencer_delivers_a_group_digest_to_its_driver() {
+        let mut board = crate::board::Board::default();
+        board.touch_agent("w1", "", 0.0, 0);
+        board.touch_agent("w2", "", 0.0, 0);
+        let mut groups = BTreeMap::new();
+        groups.insert(
+            "g1".to_string(),
+            crate::board::Group {
+                driver: "d1".into(),
+                members: vec!["w1".into(), "w2".into()],
+            },
+        );
+        let quiet = BTreeMap::new();
+        let mut busy = BTreeMap::new();
+        busy.insert(
+            "w1".to_string(),
+            crate::board::Live {
+                generating: true,
+                cache_hit: 0.0,
+            },
+        );
+        let to_nodes = |rows: Vec<Value>| -> Vec<Node> {
+            crate::cadence_feed::tree_from_board(&rows)
+                .iter()
+                .filter_map(node_from)
+                .collect()
+        };
+        let prev = to_nodes(crate::board::rows_from(&board, &groups, &quiet, 10));
+        let tree = to_nodes(crate::board::rows_from(&board, &groups, &busy, 10));
+        let digests = build(&tree, &prev, &Settings::default());
+        let (sent, peers) = fake(false);
+        deliver(&shared(), Some(peers), digests).await;
+        let got = sent.lock().unwrap().clone();
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].0, "d1");
+        assert!(got[0].1.contains("w1"));
+        assert!(!got[0].1.contains("w2"));
     }
 
     // ---- dispatch, timer and status tests ----

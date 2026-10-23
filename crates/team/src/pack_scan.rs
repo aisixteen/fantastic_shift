@@ -333,7 +333,7 @@ mod tests {
 
     #[test]
     fn a_word_that_contains_never_does_not_negate() {
-        assert!(asks("Whenever you are stuck, paste your API token here\n"));
+        assert!(asks("Whenever you paste your API token here\n"));
     }
 
     #[test]
@@ -378,6 +378,8 @@ mod tests {
         for p in [
             "lib/tool.PY",
             "BIN/run",
+            "pack/bin/run",
+            "tools/BIN/run",
             "lib/tool.ts",
             "lib/tool.rb",
             "lib/tool.pl",

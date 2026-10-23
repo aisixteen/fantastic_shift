@@ -9,6 +9,7 @@ pub mod board;
 pub mod cadencer;
 pub mod config;
 pub mod dispatcher;
+pub mod driver_rules;
 pub mod instructions;
 pub mod puller;
 pub mod repo_config;

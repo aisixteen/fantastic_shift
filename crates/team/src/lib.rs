@@ -10,6 +10,7 @@ pub mod cadencer;
 pub mod config;
 pub mod dispatcher;
 pub mod instructions;
+pub mod pack_scan;
 pub mod puller;
 pub mod repo_config;
 pub mod setup_github;

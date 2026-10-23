@@ -17,20 +17,4 @@ fn main() {
         );
     }
     println!("fantastic-team-app: web UI at {url}");
-    #[cfg(feature = "tauri")]
-    open_window(&url);
-}
-
-#[cfg(feature = "tauri")]
-fn open_window(url: &str) {
-    let url: tauri::Url = url.parse().expect("valid URL");
-    tauri::Builder::default()
-        .setup(move |app| {
-            tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::External(url))
-                .title("Fantastic Team")
-                .build()?;
-            Ok(())
-        })
-        .run(tauri::generate_context!("../../app/tauri.conf.json"))
-        .expect("tauri app failed");
 }

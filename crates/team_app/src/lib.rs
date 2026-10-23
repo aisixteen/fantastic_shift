@@ -82,8 +82,12 @@ fn split_http(url: &str) -> Option<(&str, &str)> {
 pub fn validate_loopback(url: &str) -> Result<(), String> {
     let (auth, _) =
         split_http(url).ok_or_else(|| "attach URL must start with http://".to_string())?;
-    let host = auth.split(':').next().unwrap_or("");
-    if host == "127.0.0.1" || host == "localhost" {
+    let host = if let Some(rest) = auth.strip_prefix('[') {
+        rest.split(']').next().unwrap_or("")
+    } else {
+        auth.split(':').next().unwrap_or("")
+    };
+    if host == "127.0.0.1" || host == "localhost" || host == "::1" {
         Ok(())
     } else {
         Err(format!(
@@ -169,6 +173,7 @@ mod tests {
             }
         );
         assert!(target_from_args(&args(&["--attach", "http://localhost:9/"])).is_ok());
+        assert!(target_from_args(&args(&["--attach", "http://[::1]:8080/"])).is_ok());
     }
 
     #[test]

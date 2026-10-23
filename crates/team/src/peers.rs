@@ -10,8 +10,16 @@ use std::net::SocketAddr;
 
 use serde_yaml::Value;
 
-/// Field names that would carry a key or secret; a peer entry with one is refused.
-const KEY_FIELDS: &[&str] = &["token", "key", "secret", "password"];
+/// Words that mark a field as carrying a key or secret. A peer entry whose
+/// field name CONTAINS one of them (any case: `api_key`, `access_token`,
+/// `x-api-key`, `client_secret`) is refused.
+const KEY_WORDS: &[&str] = &["token", "key", "secret", "password"];
+
+/// True when a field name contains a key-like word.
+fn is_key_field(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    KEY_WORDS.iter().any(|w| lower.contains(w))
+}
 
 /// Where a peer can be reached.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,7 +48,9 @@ impl PeerAddr {
             }
             return Ok(PeerAddr::Direct(sa));
         }
-        Err(format!("address `{s}` must start with relay: or direct:"))
+        Err(format!(
+            "address `{s}` is missing its prefix: start it with `relay:` or `direct:`"
+        ))
     }
 }
 
@@ -87,7 +97,7 @@ fn entry_from_yaml(v: &Value) -> Result<PeerSpec, String> {
     let mut role = Role::default();
     for (k, val) in map {
         let key = k.as_str().ok_or("peer keys must be strings")?;
-        if KEY_FIELDS.contains(&key) {
+        if is_key_field(key) {
             return Err(format!("peer field `{key}` refused: keys never cross"));
         }
         match key {
@@ -131,10 +141,12 @@ pub fn peers_from_yaml(yaml: &str) -> Result<Vec<PeerSpec>, String> {
 }
 
 fn spec_from_arg(v: &str) -> Result<PeerSpec, String> {
+    // `name=addr` splits at the first `=` unless the whole value already
+    // starts with a prefix (a relay id may itself contain `=`). Splitting a
+    // prefix-less `name=addr` lets the error name the address, not the value.
+    let has_prefix = v.starts_with("relay:") || v.starts_with("direct:");
     let (name, addr_s) = match v.find('=') {
-        Some(i) if v[i + 1..].starts_with("relay:") || v[i + 1..].starts_with("direct:") => {
-            (Some(v[..i].to_string()), &v[i + 1..])
-        }
+        Some(i) if !has_prefix => (Some(v[..i].to_string()), &v[i + 1..]),
         _ => (None, v),
     };
     let addr = PeerAddr::parse(addr_s)?;
@@ -279,5 +291,51 @@ other: 1
     fn a_peer_with_a_token_field_is_refused() {
         let yaml = "peers:\n  - name: alpha\n    addr: relay:x\n    token: abc\n";
         assert!(peers_from_yaml(yaml).is_err());
+    }
+
+    #[test]
+    fn key_like_field_names_are_refused_not_ignored() {
+        for field in [
+            "api_key",
+            "access_token",
+            "github_token",
+            "x-api-key",
+            "client_secret",
+            "Password",
+            "API_KEY",
+            "db_password_hash",
+        ] {
+            let yaml = format!("peers:\n  - name: alpha\n    addr: relay:x\n    {field}: abc\n");
+            let err = peers_from_yaml(&yaml).unwrap_err();
+            assert!(err.contains(field), "{field}: {err}");
+            assert!(err.contains("keys never cross"), "{field}: {err}");
+        }
+    }
+
+    #[test]
+    fn harmless_extra_fields_are_still_ignored() {
+        let yaml = "peers:\n  - name: alpha\n    addr: relay:x\n    note: hello\n";
+        assert_eq!(peers_from_yaml(yaml).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_flag_without_a_prefix_says_the_prefix_is_missing() {
+        for v in ["10.0.0.1:7000", "alpha=10.0.0.1:7000", "abc"] {
+            let err = peers_from_args(&argv(&["--peer", v])).unwrap_err();
+            assert!(err.contains("missing its prefix"), "{v}: {err}");
+            assert!(
+                err.contains("relay:") && err.contains("direct:"),
+                "{v}: {err}"
+            );
+        }
+        let err = peers_from_args(&argv(&["--peer", "alpha=10.0.0.1:7000"])).unwrap_err();
+        assert!(err.contains("`10.0.0.1:7000`"), "{err}");
+    }
+
+    #[test]
+    fn a_relay_id_with_an_equals_sign_is_not_split() {
+        let peers = peers_from_args(&argv(&["--peer", "relay:ab=="])).unwrap();
+        assert_eq!(peers[0].name, "relay:ab==");
+        assert_eq!(peers[0].addr, PeerAddr::Relay("ab==".to_string()));
     }
 }

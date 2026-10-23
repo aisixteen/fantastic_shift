@@ -215,7 +215,7 @@ pub async fn run_evals(evals: &[Eval], exec: &dyn EvalExecutor, timeout: Duratio
                     id: e.id.clone(),
                     passed: verdict.is_ok(),
                     reason: verdict.err(),
-                    elapsed: out.elapsed,
+                    elapsed: started.elapsed(),
                     cost: out.cost,
                 }
             }
@@ -336,6 +336,21 @@ mod tests {
         let bad = "- id: a\n  task: t\n  check: {bogus: x}\n";
         let err = parse_evals(vec![("evals/bad.yaml", bad)]).unwrap_err();
         assert!(err.contains("unknown check kind"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn contains_passes_only_when_the_text_is_present() {
+        // "pass" outputs "hello world"; "fail" outputs "nope".
+        let evals = vec![
+            ev("hit", "pass", Check::Contains("hello".to_string())),
+            ev("miss", "fail", Check::Contains("hello".to_string())),
+            ev("absent", "pass", Check::Contains("zzz".to_string())),
+        ];
+        let s = run_evals(&evals, &Fake, Duration::from_secs(2)).await;
+        assert!(s.per_eval[0].passed, "present text must pass");
+        assert!(!s.per_eval[1].passed, "absent text must fail");
+        assert!(!s.per_eval[2].passed, "absent text must fail");
+        assert_eq!(s.passed, 1);
     }
 
     #[tokio::test]

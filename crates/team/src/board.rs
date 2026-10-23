@@ -327,6 +327,70 @@ impl Board {
     }
 }
 
+/// What the kernel says about one agent right now.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Live {
+    /// Whether it is generating a reply.
+    pub generating: bool,
+    /// Its cache hit rate, 0..1.
+    pub cache_hit: f64,
+}
+
+/// One row per agent the board knows, in the shape `cadence_feed::tree_from_board` reads.
+pub fn rows_from(board: &Board, live: &BTreeMap<String, Live>, now: u64) -> Vec<Value> {
+    board
+        .agents
+        .iter()
+        .map(|(name, info)| {
+            let claim = board
+                .tasks
+                .values()
+                .find(|t| t.status == Status::InWork && t.claimers.contains(name));
+            let lv = live.get(name).cloned().unwrap_or_default();
+            let busy = lv.generating || claim.is_some();
+            let done = board
+                .tasks
+                .values()
+                .any(|t| t.status == Status::Done && t.claimers.contains(name));
+            let failed = board
+                .tasks
+                .values()
+                .any(|t| t.status == Status::Failed && t.claimers.contains(name));
+            let state = if busy {
+                "busy"
+            } else if done {
+                "done"
+            } else if failed {
+                "failed"
+            } else {
+                "idle"
+            };
+            json!({
+                "id": name,
+                "parent": null,
+                "has_ai": true,
+                "state": state,
+                "task": claim.map(|t| t.id.clone()).unwrap_or_default(),
+                "idle_s": now.saturating_sub(info.last_seen),
+                "time_on_task_s": claim.map(|t| now.saturating_sub(t.updated)).unwrap_or(0),
+                "cost": info.cost,
+                "cache_hit": lv.cache_hit,
+                "new_results": 0,
+            })
+        })
+        .collect()
+}
+
+/// Ask one agent for its status and usage through the kernel.
+async fn live_of(peers: &dyn Peers, name: &str) -> Live {
+    let status = peers.ask(name, json!({"type": "status"})).await;
+    let reflect = peers.ask(name, json!({"type": "reflect"})).await;
+    Live {
+        generating: status["status"].as_str() == Some("generating"),
+        cache_hit: reflect["cache_hit"].as_f64().unwrap_or(0.0),
+    }
+}
+
 /// The board's config, read from its own record.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoardCfg {
@@ -478,6 +542,13 @@ async fn dispatch(peers: &dyn Peers, cfg: &BoardCfg, t: &str, p: &Value) -> Valu
             json!({"tasks": board.tasks.len(), "errors": errors})
         }
         "board" => board.snapshot(),
+        "rows" => {
+            let mut live = BTreeMap::new();
+            for name in board.agents.keys() {
+                live.insert(name.clone(), live_of(peers, name).await);
+            }
+            json!({"rows": rows_from(&board, &live, now)})
+        }
         "task" => {
             let id = p["id"].as_str().unwrap_or("");
             match board.tasks.get(id) {
@@ -789,6 +860,33 @@ mod tests {
         assert_eq!(board.asks.len(), 1);
         assert_eq!(board.asks[0].text, "ship it?");
         assert!(board.asks[0].answer.as_deref().unwrap().contains("noted"));
+    }
+
+    #[test]
+    fn board_rows_have_the_feed_shape() {
+        let mut board = Board::default();
+        board.add_issue("o/r", 1, "t", 0);
+        board.apply_state("o/r#1", "in_work busy-w\n", 90);
+        board.touch_agent("busy-w", "working", 1.5, 95);
+        board.touch_agent("idle-w", "waiting", 0.0, 60);
+        let mut live = BTreeMap::new();
+        live.insert(
+            "busy-w".to_string(),
+            Live {
+                generating: true,
+                cache_hit: 0.8,
+            },
+        );
+        let rows = rows_from(&board, &live, 100);
+        assert_eq!(rows.len(), 2);
+        let busy = rows.iter().find(|r| r["id"] == "busy-w").unwrap();
+        assert_eq!(busy["state"], "busy");
+        assert_eq!(busy["task"], "o/r#1");
+        assert_eq!(busy["idle_s"], 5);
+        assert_eq!(busy["time_on_task_s"], 10);
+        let idle = rows.iter().find(|r| r["id"] == "idle-w").unwrap();
+        assert_eq!(idle["state"], "idle");
+        assert_eq!(idle["task"], "");
     }
 
     #[test]

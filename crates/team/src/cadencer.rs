@@ -304,7 +304,7 @@ fn beat(inner: &mut Inner) -> Vec<Digest> {
 /// Ask the board for its rows and turn them into the tree shape. `None` when
 /// the board gives no `rows` list.
 async fn read_board(peers: &dyn Peers, board: &str) -> Option<Vec<Node>> {
-    let reply = peers.ask(board, json!({"type": "board"})).await;
+    let reply = peers.ask(board, json!({"type": "rows"})).await;
     let rows = reply.get("rows")?.as_array()?;
     Some(
         cadence_feed::tree_from_board(rows)
@@ -842,7 +842,7 @@ mod tests {
     #[async_trait::async_trait]
     impl Peers for BoardPeers {
         async fn ask(&self, to: &str, p: Value) -> Value {
-            if p["type"] == "board" {
+            if p["type"] == "rows" {
                 return json!({"rows": [
                     {"id": "g1", "parent": null, "has_ai": true, "state": "busy", "task": "x"},
                     {"id": "w1", "parent": "g1", "has_ai": true, "state": "busy", "task": "build", "idle_s": 0}

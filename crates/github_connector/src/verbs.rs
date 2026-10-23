@@ -85,11 +85,7 @@ async fn read_file(id: &AgentId, kernel: &Arc<Kernel>, cfg: &Cfg, p: &Value) -> 
         Ok(t) => t,
         Err(e) => return e,
     };
-    let encoded: String = path
-        .split('/')
-        .map(pct)
-        .collect::<Vec<_>>()
-        .join("/");
+    let encoded: String = path.split('/').map(pct).collect::<Vec<_>>().join("/");
     let mut q: Vec<(&str, String)> = Vec::new();
     if let Some(r) = &git_ref {
         q.push(("ref", r.clone()));

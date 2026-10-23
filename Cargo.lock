@@ -984,6 +984,7 @@ dependencies = [
  "fantastic-team-secrets-guard",
  "fantastic-tui",
  "hmac",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",

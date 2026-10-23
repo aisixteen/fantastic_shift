@@ -15,6 +15,8 @@ pub mod driver_config;
 pub mod driver_rules;
 pub mod instructions;
 pub mod pack_record;
+pub mod pack_eval;
+pub mod pack_manifest;
 pub mod puller;
 pub mod repo_config;
 pub mod setup_github;

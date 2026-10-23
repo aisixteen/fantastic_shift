@@ -91,3 +91,32 @@ fn the_window_loads_a_loopback_url() {
         assert!(host_ok, "window url is not loopback: {url}");
     }
 }
+
+#[test]
+fn window_url_and_frontend_dist_name_the_same_origin() {
+    let conf = load_conf();
+    let dist = conf["build"]["frontendDist"]
+        .as_str()
+        .expect("build.frontendDist is a string");
+    let url = conf["app"]["windows"][0]["url"]
+        .as_str()
+        .expect("window url is a string");
+    assert_eq!(dist, url, "window url and frontendDist must match");
+}
+
+#[test]
+fn csp_has_no_unsafe_inline_and_one_port() {
+    let conf = load_conf();
+    let csp = conf["app"]["security"]["csp"]
+        .as_str()
+        .expect("app.security.csp is a string");
+    assert!(
+        !csp.contains("unsafe-inline"),
+        "CSP allows unsafe-inline: {csp}"
+    );
+    assert!(!csp.contains(":*"), "CSP has a wildcard port: {csp}");
+    assert!(
+        csp.contains("connect-src 'self' http://127.0.0.1:8765 ws://127.0.0.1:8765"),
+        "connect-src is not limited to the one port: {csp}"
+    );
+}

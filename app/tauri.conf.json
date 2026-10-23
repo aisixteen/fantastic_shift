@@ -8,7 +8,7 @@
       { "title": "Fantastic Team", "width": 1280, "height": 800, "url": "http://127.0.0.1:8765" }
     ],
     "withGlobalTauri": false,
-    "security": { "csp": "default-src 'self' http://127.0.0.1:* http://localhost:*; connect-src 'self' ws://127.0.0.1:* ws://localhost:* http://127.0.0.1:* http://localhost:*; style-src 'self' 'unsafe-inline'" }
+    "security": { "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8765 ws://127.0.0.1:8765; style-src 'self'" }
   },
   "bundle": {
     "active": true,

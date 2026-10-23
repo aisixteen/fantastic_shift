@@ -14,8 +14,8 @@ pub mod puller;
 pub mod repo_config;
 pub mod setup_github;
 pub mod tree;
-pub mod worker_view;
 pub mod webhook;
+pub mod worker_view;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -43,6 +43,7 @@ pub fn register_team(reg: &mut BundleRegistry) {
     reg.register(puller::HANDLER_MODULE, puller::PullerBundle);
     reg.register(webhook::HANDLER_MODULE, webhook::WebhookBundle);
     reg.register(board::HANDLER_MODULE, board::BoardBundle);
+    reg.register(pack_bundle::HANDLER_MODULE, pack_bundle::PackBundle);
     reg.register(dispatcher::HANDLER_MODULE, dispatcher::DispatcherBundle);
     reg.register(
         cadencer::HANDLER_MODULE,
@@ -264,6 +265,7 @@ async fn boot_kernel(kernel: &Arc<Kernel>) -> Result<(), String> {
 }
 
 pub mod directives;
+pub mod pack_bundle;
 
 #[cfg(test)]
 mod tests {

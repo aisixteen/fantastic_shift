@@ -14,6 +14,7 @@ pub mod driver;
 pub mod driver_config;
 pub mod driver_rules;
 pub mod instructions;
+pub mod peers;
 pub mod peer_envelope;
 pub mod pack_eval;
 pub mod pack_manifest;

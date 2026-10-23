@@ -4,7 +4,7 @@
 //! and audits the picture. It NEVER assigns: no verb sets an assignee or writes
 //! a claim for someone else. Audit findings only become asks.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -100,6 +100,17 @@ pub struct AgentInfo {
     pub last_seen: u64,
     /// Its cost so far, as it reports it.
     pub cost: f64,
+}
+
+/// A configured group: its AI driver (empty when it has none) and its members.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Group {
+    /// The agent that receives the group's digest. Empty for no driver.
+    #[serde(default)]
+    pub driver: String,
+    /// Agent ids in the group.
+    #[serde(default)]
+    pub members: Vec<String>,
 }
 
 /// The whole picture. Serialized into the store on every change.
@@ -327,6 +338,188 @@ impl Board {
     }
 }
 
+/// What the kernel says about one agent right now.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Live {
+    /// Whether it is generating a reply.
+    pub generating: bool,
+    /// Its cache hit rate, 0..1.
+    pub cache_hit: f64,
+    /// The text of the inquiry its driver opened and it has not answered, if any.
+    pub inquiry: Option<String>,
+    /// The time of its newest conversation row, unix seconds, when known.
+    pub newest_row: Option<u64>,
+}
+
+/// One row per agent the board knows, in the shape `cadence_feed::tree_from_board` reads.
+/// Rows for the board: one row per configured group (`parent` null, `driver` set),
+/// then one row per agent. A member of a group has `parent` = the group, and gets a
+/// row with live state even if it never registered.
+pub fn rows_from(
+    board: &Board,
+    groups: &BTreeMap<String, Group>,
+    live: &BTreeMap<String, Live>,
+    now: u64,
+) -> Vec<Value> {
+    let mut b = board.clone();
+    for g in groups.values() {
+        for m in &g.members {
+            b.agents.entry(m.clone()).or_insert_with(|| AgentInfo {
+                state: String::new(),
+                last_seen: now,
+                cost: 0.0,
+            });
+        }
+    }
+    let mut rows = agent_rows(&b, live, now);
+    for row in rows.iter_mut() {
+        let id = row["id"].as_str().unwrap_or("").to_string();
+        if let Some((gname, _)) = groups.iter().find(|(_, g)| g.members.contains(&id)) {
+            row["parent"] = json!(gname);
+        }
+    }
+    let mut out = Vec::new();
+    for (gname, g) in groups {
+        out.push(json!({
+            "id": gname,
+            "parent": null,
+            "has_ai": !g.driver.is_empty(),
+            "driver": g.driver,
+            "state": "group",
+            "task": "",
+            "idle_s": 0,
+            "time_on_task_s": 0,
+            "cost": 0.0,
+            "cache_hit": 0.0,
+            "new_results": 0,
+        }));
+    }
+    out.extend(rows);
+    out
+}
+
+fn agent_rows(board: &Board, live: &BTreeMap<String, Live>, now: u64) -> Vec<Value> {
+    board
+        .agents
+        .iter()
+        .map(|(name, info)| {
+            let claim = board
+                .tasks
+                .values()
+                .find(|t| t.status == Status::InWork && t.claimers.contains(name));
+            let lv = live.get(name).cloned().unwrap_or_default();
+            let busy = lv.generating || claim.is_some() || lv.inquiry.is_some();
+            let task = claim
+                .map(|t| t.id.clone())
+                .or_else(|| lv.inquiry.as_deref().map(first_line))
+                .unwrap_or_default();
+            let idle_s = match lv.newest_row {
+                Some(t) => now
+                    .saturating_sub(info.last_seen)
+                    .min(now.saturating_sub(t)),
+                None => now.saturating_sub(info.last_seen),
+            };
+            let done = board
+                .tasks
+                .values()
+                .any(|t| t.status == Status::Done && t.claimers.contains(name));
+            let failed = board
+                .tasks
+                .values()
+                .any(|t| t.status == Status::Failed && t.claimers.contains(name));
+            let state = if busy {
+                "busy"
+            } else if done {
+                "done"
+            } else if failed {
+                "failed"
+            } else {
+                "idle"
+            };
+            json!({
+                "id": name,
+                "parent": null,
+                "has_ai": true,
+                "state": state,
+                "task": task,
+                "idle_s": idle_s,
+                "time_on_task_s": claim.map(|t| now.saturating_sub(t.updated)).unwrap_or(0),
+                "cost": info.cost,
+                "cache_hit": lv.cache_hit,
+                "new_results": 0,
+            })
+        })
+        .collect()
+}
+
+/// How an inquiry's first row begins (ai-core's `inquiry_head`).
+const INQUIRY_HEAD: &str = "[inquiry from ";
+
+fn content_of(row: &Value) -> &str {
+    row["content"].as_str().unwrap_or("")
+}
+
+/// The asker an inquiry row names in its header, `None` when the row is not an inquiry.
+fn asker_of(content: &str) -> Option<&str> {
+    let rest = content.strip_prefix(INQUIRY_HEAD)?;
+    let end = rest.find(" · ").or_else(|| rest.find(']'))?;
+    Some(rest[..end].trim())
+}
+
+/// The first non-empty line of a text.
+fn first_line(text: &str) -> String {
+    text.lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .unwrap_or("")
+        .to_string()
+}
+
+/// The open inquiry in an agent's conversation rows (the `rows` verb), as its text
+/// after the header line. The newest row that starts with `[inquiry from <driver> `
+/// is open unless a later row of the agent holds an `inquiry_answer` call. With no
+/// driver known, an inquiry from anyone counts.
+pub fn open_inquiry(rows: &[Value], driver: &str) -> Option<String> {
+    let at = rows
+        .iter()
+        .rposition(|r| asker_of(content_of(r)).is_some_and(|a| driver.is_empty() || a == driver))?;
+    let answered = rows[at + 1..].iter().any(|r| {
+        let c = content_of(r);
+        !c.starts_with(INQUIRY_HEAD) && c.contains("name=\"inquiry_answer\"")
+    });
+    if answered {
+        return None;
+    }
+    let body = content_of(&rows[at])
+        .split_once('\n')
+        .map(|(_, b)| b.trim().to_string())
+        .unwrap_or_default();
+    Some(body)
+}
+
+/// The time of the newest row, unix seconds.
+pub fn newest_row(rows: &[Value]) -> Option<u64> {
+    rows.iter()
+        .filter_map(|r| r["ts"].as_f64())
+        .map(|t| t as u64)
+        .max()
+}
+
+/// Ask one agent for its status, usage and conversation rows through the kernel.
+/// `driver` is the agent that drives it, empty when it has none.
+async fn live_of(peers: &dyn Peers, name: &str, driver: &str) -> Live {
+    let status = peers.ask(name, json!({"type": "status"})).await;
+    let reflect = peers.ask(name, json!({"type": "reflect"})).await;
+    let history = peers.ask(name, json!({"type": "rows"})).await;
+    let rows: Vec<Value> = history["rows"].as_array().cloned().unwrap_or_default();
+    Live {
+        generating: status["status"].as_str() == Some("generating"),
+        cache_hit: reflect["cache_hit"].as_f64().unwrap_or(0.0),
+        inquiry: open_inquiry(&rows, driver),
+        newest_row: newest_row(&rows),
+    }
+}
+
 /// The board's config, read from its own record.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoardCfg {
@@ -340,6 +533,8 @@ pub struct BoardCfg {
     pub ask_to: String,
     /// Seconds without activity before a claim is stale.
     pub stale_secs: u64,
+    /// Groups from the board record: name → driver and members.
+    pub groups: BTreeMap<String, Group>,
 }
 
 fn now_secs() -> u64 {
@@ -378,6 +573,10 @@ fn cfg_of(
         github: text("github").ok_or_else(|| "team_board: record needs `github`".to_string())?,
         store: text("store").ok_or_else(|| "team_board: record needs `store`".to_string())?,
         ask_to: text("ask_to").unwrap_or_else(|| "user".into()),
+        groups: meta
+            .get("team_groups")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default(),
         stale_secs: meta
             .get("stale_minutes")
             .and_then(|v| v.as_u64())
@@ -478,6 +677,23 @@ async fn dispatch(peers: &dyn Peers, cfg: &BoardCfg, t: &str, p: &Value) -> Valu
             json!({"tasks": board.tasks.len(), "errors": errors})
         }
         "board" => board.snapshot(),
+        "rows" => {
+            let mut live = BTreeMap::new();
+            let mut names: BTreeSet<String> = board.agents.keys().cloned().collect();
+            for g in cfg.groups.values() {
+                names.extend(g.members.iter().cloned());
+            }
+            for name in &names {
+                let driver = cfg
+                    .groups
+                    .values()
+                    .find(|g| g.members.contains(name))
+                    .map(|g| g.driver.as_str())
+                    .unwrap_or("");
+                live.insert(name.clone(), live_of(peers, name, driver).await);
+            }
+            json!({"rows": rows_from(&board, &cfg.groups, &live, now)})
+        }
         "task" => {
             let id = p["id"].as_str().unwrap_or("");
             match board.tasks.get(id) {
@@ -633,6 +849,7 @@ mod tests {
             store: "store".into(),
             ask_to: "user".into(),
             stale_secs: 1800,
+            groups: BTreeMap::new(),
         }
     }
 
@@ -792,6 +1009,118 @@ mod tests {
     }
 
     #[test]
+    fn board_rows_have_the_feed_shape() {
+        let mut board = Board::default();
+        board.add_issue("o/r", 1, "t", 0);
+        board.apply_state("o/r#1", "in_work busy-w\n", 90);
+        board.touch_agent("busy-w", "working", 1.5, 95);
+        board.touch_agent("idle-w", "waiting", 0.0, 60);
+        let mut live = BTreeMap::new();
+        live.insert(
+            "busy-w".to_string(),
+            Live {
+                generating: true,
+                cache_hit: 0.8,
+                ..Default::default()
+            },
+        );
+        let rows = rows_from(&board, &BTreeMap::new(), &live, 100);
+        assert_eq!(rows.len(), 2);
+        let busy = rows.iter().find(|r| r["id"] == "busy-w").unwrap();
+        assert_eq!(busy["state"], "busy");
+        assert_eq!(busy["task"], "o/r#1");
+        assert_eq!(busy["idle_s"], 5);
+        assert_eq!(busy["time_on_task_s"], 10);
+        let idle = rows.iter().find(|r| r["id"] == "idle-w").unwrap();
+        assert_eq!(idle["state"], "idle");
+        assert_eq!(idle["task"], "");
+    }
+
+    fn one_live(name: &str, lv: Live) -> BTreeMap<String, Live> {
+        let mut m = BTreeMap::new();
+        m.insert(name.to_string(), lv);
+        m
+    }
+
+    #[test]
+    fn a_member_with_an_open_inquiry_is_busy_with_that_task() {
+        let mut board = Board::default();
+        board.touch_agent("m1", "", 0.0, 90);
+        let live = one_live(
+            "m1",
+            Live {
+                inquiry: Some("do X\nmore".into()),
+                newest_row: Some(97),
+                ..Default::default()
+            },
+        );
+        let rows = rows_from(&board, &BTreeMap::new(), &live, 100);
+        let m = rows.iter().find(|r| r["id"] == "m1").unwrap();
+        assert_eq!(m["state"], "busy");
+        assert_eq!(m["task"], "do X");
+        assert_eq!(m["idle_s"], 3);
+    }
+
+    #[test]
+    fn a_claim_wins_over_an_inquiry_for_the_task() {
+        let mut board = Board::default();
+        board.add_issue("o/r", 1, "t", 0);
+        board.apply_state("o/r#1", "in_work m1\n", 90);
+        board.touch_agent("m1", "", 0.0, 90);
+        let live = one_live(
+            "m1",
+            Live {
+                inquiry: Some("do X".into()),
+                ..Default::default()
+            },
+        );
+        let rows = rows_from(&board, &BTreeMap::new(), &live, 100);
+        let m = rows.iter().find(|r| r["id"] == "m1").unwrap();
+        assert_eq!(m["task"], "o/r#1");
+    }
+
+    #[test]
+    fn a_member_generating_is_busy() {
+        let mut board = Board::default();
+        board.touch_agent("m1", "", 0.0, 90);
+        let live = one_live(
+            "m1",
+            Live {
+                generating: true,
+                ..Default::default()
+            },
+        );
+        let rows = rows_from(&board, &BTreeMap::new(), &live, 100);
+        let m = rows.iter().find(|r| r["id"] == "m1").unwrap();
+        assert_eq!(m["state"], "busy");
+        assert_eq!(m["task"], "");
+    }
+
+    #[test]
+    fn an_inquiry_is_open_until_the_member_answers_it() {
+        let inquiry = json!({"role": "user", "ts": 5.0,
+            "content": "[inquiry from lead · re 7 — do any work it needs, then answer with <call name=\"inquiry_answer\"><answer>…</answer></call> before done: nothing else counts as your answer]\ndo X\nmore"});
+        let other = json!({"role": "user", "ts": 6.0,
+            "content": "[inquiry from user · re 8 — x]\nsomething else"});
+        let working = json!({"role": "assistant", "ts": 7.0, "content": "reading files"});
+        let answer = json!({"role": "assistant", "ts": 9.0,
+            "content": "<call name=\"inquiry_answer\"><answer>ok</answer></call>"});
+        let open = open_inquiry(&[inquiry.clone(), working.clone()], "lead");
+        assert_eq!(open.as_deref().map(first_line).as_deref(), Some("do X"));
+        // an inquiry from someone else is not the driver's
+        assert_eq!(
+            open_inquiry(&[inquiry.clone(), other], "lead").unwrap(),
+            "do X\nmore"
+        );
+        assert_eq!(open_inquiry(&[inquiry, working, answer], "lead"), None);
+        assert_eq!(open_inquiry(&[], "lead"), None);
+        assert_eq!(
+            newest_row(&[json!({"ts": 5.5}), json!({"ts": 9.0}), json!({})]),
+            Some(9)
+        );
+    }
+
+    #[test]
     fn board_reply_shape_is_stable() {
         let v = Board::default().snapshot();
         for k in ["pending", "in_work", "done", "failed"] {
@@ -815,5 +1144,97 @@ mod tests {
     fn register_team_registers_board() {
         let reg = crate::registry();
         assert!(reg.get(HANDLER_MODULE).is_some());
+    }
+
+    #[test]
+    fn rows_list_configured_groups_and_members() {
+        let mut board = Board::default();
+        board.touch_agent("m1", "working", 0.0, 90);
+        let mut groups = BTreeMap::new();
+        groups.insert(
+            "g1".to_string(),
+            Group {
+                driver: "d1".into(),
+                members: vec!["m1".into(), "m2".into()],
+            },
+        );
+        let rows = rows_from(&board, &groups, &BTreeMap::new(), 100);
+        let g = rows.iter().find(|r| r["id"] == "g1").unwrap();
+        assert_eq!(g["parent"], Value::Null);
+        assert_eq!(g["has_ai"], true);
+        assert_eq!(g["driver"], "d1");
+        let m1 = rows.iter().find(|r| r["id"] == "m1").unwrap();
+        assert_eq!(m1["parent"], "g1");
+    }
+
+    #[test]
+    fn a_member_never_registered_still_has_a_row() {
+        let board = Board::default();
+        let mut groups = BTreeMap::new();
+        groups.insert(
+            "g1".to_string(),
+            Group {
+                driver: String::new(),
+                members: vec!["ghost".into()],
+            },
+        );
+        let mut live = BTreeMap::new();
+        live.insert(
+            "ghost".to_string(),
+            Live {
+                generating: true,
+                cache_hit: 0.0,
+                ..Default::default()
+            },
+        );
+        let rows = rows_from(&board, &groups, &live, 100);
+        let m = rows.iter().find(|r| r["id"] == "ghost").unwrap();
+        assert_eq!(m["parent"], "g1");
+        assert_eq!(m["state"], "busy");
+        let g = rows.iter().find(|r| r["id"] == "g1").unwrap();
+        assert_eq!(g["has_ai"], false);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn team_groups_survive_a_real_kernel_create() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let kernel = crate::start(dir.path()).await.unwrap();
+        let created = kernel
+            .send(vec![fantastic_kernel::Item::new(
+                "kernel",
+                json!({
+                    "type": "create_agent",
+                    "id": "board_t",
+                    "parent_id": "kernel_state",
+                    "handler_module": HANDLER_MODULE,
+                    "github": "gh",
+                    "store": "store",
+                    "team_groups": {
+                        "g1": {"driver": "d1", "members": ["m1", "m2"]}
+                    }
+                }),
+            )])
+            .await;
+        assert!(
+            matches!(created[0].status, fantastic_kernel::Status::Completed),
+            "create_agent failed: {:?}",
+            created[0].result
+        );
+        let outcomes = kernel
+            .send(vec![fantastic_kernel::Item::new(
+                "board_t",
+                json!({"type": "rows"}),
+            )])
+            .await;
+        let rows = outcomes[0].result["rows"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let g = rows.iter().find(|r| r["id"] == "g1");
+        assert!(g.is_some(), "group g1 missing from rows: {rows:?}");
+        let m1 = rows.iter().find(|r| r["id"] == "m1").unwrap();
+        assert_eq!(m1["parent"], "g1");
+        kernel.shutdown().await;
+        crate::bootstrap::shutdown(dir.path()).unwrap();
     }
 }
